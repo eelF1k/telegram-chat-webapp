@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Чат з підтримкою</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #000000);
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .chat-header {
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, white);
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .chat-container {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            background: var(--tg-theme-secondary-bg-color, #f5f5f5);
+        }
+        
+        .message {
+            margin: 10px 0;
+            padding: 12px 16px;
+            border-radius: 18px;
+            max-width: 85%;
+            word-wrap: break-word;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .message.user {
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, white);
+            margin-left: auto;
+            text-align: right;
+        }
+        
+        .message.admin {
+            background: var(--tg-theme-secondary-bg-color, #e5e5ea);
+            color: var(--tg-theme-text-color, #000);
+            border: 1px solid var(--tg-theme-hint-color, #ddd);
+        }
+        
+        .message-time {
+            font-size: 11px;
+            opacity: 0.7;
+            margin-top: 5px;
+        }
+        
+        .message-status {
+            font-size: 12px;
+            margin-top: 5px;
+            text-align: right;
+        }
+        
+        .status-read { color: #4fc3f7; }
+        .status-delivered { color: #666; }
+        .status-sending { color: #999; }
+        
+        .input-container {
+            display: flex;
+            gap: 10px;
+            padding: 15px;
+            background: var(--tg-theme-bg-color, white);
+            border-top: 1px solid var(--tg-theme-hint-color, #ccc);
+        }
+        
+        .message-input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 1px solid var(--tg-theme-hint-color, #ccc);
+            border-radius: 25px;
+            outline: none;
+            background: var(--tg-theme-bg-color, white);
+            color: var(--tg-theme-text-color, black);
+            resize: none;
+            min-height: 20px;
+            max-height: 100px;
+        }
+        
+        .send-button {
+            padding: 12px 20px;
+            background: var(--tg-theme-button-color, #0088cc);
+            color: var(--tg-theme-button-text-color, white);
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .send-button:hover {
+            background: var(--tg-theme-button-color, #006699);
+        }
+        
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            padding: 10px 15px;
+            font-style: italic;
+            color: var(--tg-theme-hint-color, #999);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+        
+        .typing-indicator.show {
+            opacity: 1;
+        }
+        
+        .close-chat-btn {
+            background: #ff4444;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 15px;
+            margin: 10px 15px;
+            cursor: pointer;
+        }
+        
+        .connection-status {
+            text-align: center;
+            padding: 5px;
+            font-size: 12px;
+            background: #fff3cd;
+            color: #856404;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="chat-header">
+        💬 Чат з підтримкою
+    </div>
+    
+    <div class="connection-status" id="connectionStatus">
+        Підключення...
+    </div>
+    
+    <div class="chat-container" id="chatContainer">
+        <div class="message admin">
+            Вітаємо! Як можемо допомогти?
+            <div class="message-time">Зараз</div>
+        </div>
+    </div>
+    
+    <div class="typing-indicator" id="typingIndicator">
+        Адміністратор друкує...
+    </div>
+    
+    <div class="input-container">
+        <textarea id="messageInput" class="message-input" placeholder="Введіть повідомлення..." rows="1"></textarea>
+        <button id="sendButton" class="send-button">➤</button>
+    </div>
+    
+    <button class="close-chat-btn" onclick="closeChat()">Закрити чат</button>
+
+    <script>
+        const tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        
+        const chatContainer = document.getElementById('chatContainer');
+        const messageInput = document.getElementById('messageInput');
+        const sendButton = document.getElementById('sendButton');
+        const typingIndicator = document.getElementById('typingIndicator');
+        const connectionStatus = document.getElementById('connectionStatus');
+        
+        // Отримуємо параметри з URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const userId = urlParams.get('user_id');
+        const chatId = urlParams.get('chat_id');
+        
+        let ws = null;
+        let reconnectInterval = null;
+        
+        // Підключення до WebSocket
+        function connectWebSocket() {
+            ws = new WebSocket(`ws://localhost:8001/ws/${chatId}`);
+            
+            ws.onopen = function() {
+                console.log('WebSocket підключено');
+                connectionStatus.style.display = 'none';
+                clearInterval(reconnectInterval);
+                loadChatHistory();
+            };
+            
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+            
+            ws.onclose = function() {
+                console.log('WebSocket відключено');
+                connectionStatus.textContent = 'Підключення втрачено. Спроба перепідключення...';
+                connectionStatus.style.display = 'block';
+                attemptReconnect();
+            };
+            
+            ws.onerror = function(error) {
+                console.error('WebSocket помилка:', error);
+            };
+        }
+        
+        function attemptReconnect() {
+            reconnectInterval = setInterval(() => {
+                console.log('Спроба перепідключення...');
+                connectWebSocket();
+            }, 3000);
+        }
+        
+        function handleWebSocketMessage(data) {
+            switch(data.type) {
+                case 'new_message':
+                    addMessage(data.message, data.sender_type === 'user', data.timestamp);
+                    break;
+                case 'message_read':
+                    updateMessageStatus(data.message_id, 'read');
+                    break;
+                case 'typing':
+                    showTypingIndicator(data.is_typing);
+                    break;
+                case 'history':
+                    loadHistoryMessages(data.messages);
+                    break;
+            }
+        }
+        
+        // Завантажуємо історію чату
+        function loadChatHistory() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'get_history',
+                    chat_id: chatId
+                }));
+            }
+        }
+        
+        function loadHistoryMessages(messages) {
+            chatContainer.innerHTML = '';
+            messages.forEach(msg => {
+                addMessage(msg.message_text, msg.sender_type === 'user', msg.sent_at, msg.is_read);
+            });
+        }
+        
+        // Додаємо повідомлення до чату
+        function addMessage(text, isUser = false, timestamp = null, isRead = false) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
+            
+            const timeStr = timestamp ? formatTime(timestamp) : formatTime(new Date().toISOString());
+            let statusIcon = '';
+            
+            if (isUser) {
+                statusIcon = isRead ? '<span class="status-read">✓✓</span>' : '<span class="status-delivered">✓</span>';
+            }
+            
+            messageDiv.innerHTML = `
+                ${text}
+                <div class="message-time">${timeStr} ${statusIcon}</div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        function formatTime(timestamp) {
+            const date = new Date(timestamp);
+            return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+        }
+        
+        function scrollToBottom() {
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+        
+        function updateMessageStatus(messageId, status) {
+            // Оновлюємо статус повідомлення
+            const messages = chatContainer.querySelectorAll('.message.user');
+            messages.forEach(msg => {
+                const statusSpan = msg.querySelector('.status-delivered, .status-read');
+                if (statusSpan && status === 'read') {
+                    statusSpan.className = 'status-read';
+                    statusSpan.innerHTML = '✓✓';
+                }
+            });
+        }
+        
+        function showTypingIndicator(isTyping) {
+            if (isTyping) {
+                typingIndicator.classList.add('show');
+            } else {
+                typingIndicator.classList.remove('show');
+            }
+        }
+        
+        // Відправляємо повідомлення
+        function sendMessage() {
+            const message = messageInput.value.trim();
+            if (!message || !ws || ws.readyState !== WebSocket.OPEN) return;
+            
+            // Додаємо повідомлення в інтерфейс
+            addMessage(message, true);
+            messageInput.value = '';
+            adjustTextareaHeight();
+            
+            // Відправляємо через WebSocket
+            ws.send(JSON.stringify({
+                type: 'send_message',
+                chat_id: chatId,
+                user_id: userId,
+                message: message,
+                sender_type: 'user'
+            }));
+        }
+        
+        function closeChat() {
+            if (ws) {
+                ws.send(JSON.stringify({
+                    type: 'close_chat',
+                    chat_id: chatId
+                }));
+            }
+            tg.close();
+        }
+        
+        // Автоматично змінюємо висоту поля введення
+        function adjustTextareaHeight() {
+            messageInput.style.height = 'auto';
+            messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
+        }
+        
+        // Події
+        sendButton.addEventListener('click', sendMessage);
+        
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+        
+        messageInput.addEventListener('input', () => {
+            adjustTextareaHeight();
+            
+            // Сповіщаємо про набір тексту
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'typing',
+                    chat_id: chatId,
+                    is_typing: messageInput.value.length > 0
+                }));
+            }
+        });
+        
+        // Ініціалізація
+        connectWebSocket();
+    </script>
+</body>
+</html>
