@@ -46,6 +46,31 @@
         function startChat() {
             window.location.href = 'chat.html' + window.location.search;
         }
+        function sendMessage() {
+    const message = messageInput.value.trim();
+    if (!message) return;
+    
+    // Додаємо повідомлення у чат
+    addMessage(message, true);
+    messageInput.value = '';
+    
+    console.log('Відправляємо повідомлення:', message); // Діагностика
+    
+    // Відправляємо дані боту через Telegram WebApp API
+    const data = {
+        action: 'send_message',
+        message: message,
+        user_id: user?.id,
+        username: user?.username,
+        first_name: user?.first_name,
+        timestamp: new Date().toISOString()
+    };
+    
+    console.log('Дані для відправки:', data); // Діагностика
+    
+    // Закриваємо WebApp і передаємо дані боту
+    tg.sendData(JSON.stringify(data));
+}
     </script>
 </body>
 </html>
