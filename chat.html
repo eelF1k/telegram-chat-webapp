@@ -24,6 +24,12 @@
             text-align: center;
         }
         
+        .status {
+            font-size: 14px;
+            color: var(--tg-theme-hint-color, #999);
+            margin-top: 5px;
+        }
+        
         .chat-container {
             flex: 1;
             overflow-y: auto;
@@ -31,41 +37,50 @@
         }
         
         .message {
-            margin-bottom: 10px;
-            padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 80%;
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            border-radius: 18px;
+            max-width: 75%;
             word-wrap: break-word;
+            position: relative;
         }
         
         .message.user {
             background: var(--tg-theme-button-color, #007AFF);
             color: var(--tg-theme-button-text-color, #ffffff);
             margin-left: auto;
-            text-align: right;
+            border-bottom-right-radius: 4px;
         }
         
         .message.admin {
             background: var(--tg-theme-secondary-bg-color, #f1f1f1);
             color: var(--tg-theme-text-color, #000000);
             margin-right: auto;
+            border-bottom-left-radius: 4px;
+        }
+        
+        .message-time {
+            font-size: 12px;
+            opacity: 0.7;
+            margin-top: 5px;
         }
         
         .input-container {
             display: flex;
-            padding: 10px;
+            padding: 15px;
             border-top: 1px solid var(--tg-theme-hint-color, #ccc);
             background: var(--tg-theme-bg-color, #ffffff);
+            gap: 10px;
         }
         
         .message-input {
             flex: 1;
             border: 1px solid var(--tg-theme-hint-color, #ccc);
-            border-radius: 20px;
-            padding: 10px 15px;
-            margin-right: 10px;
+            border-radius: 25px;
+            padding: 12px 20px;
             background: var(--tg-theme-bg-color, #ffffff);
             color: var(--tg-theme-text-color, #000000);
+            outline: none;
         }
         
         .send-button {
@@ -73,16 +88,25 @@
             color: var(--tg-theme-button-text-color, #ffffff);
             border: none;
             border-radius: 50%;
-            width: 40px;
-            height: 40px;
+            width: 45px;
+            height: 45px;
             cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
         }
         
-        .status {
-            text-align: center;
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .typing-indicator {
+            font-style: italic;
             color: var(--tg-theme-hint-color, #999);
-            font-size: 14px;
             padding: 10px;
+            text-align: center;
         }
     </style>
 </head>
@@ -95,8 +119,12 @@
     <div class="chat-container" id="chatContainer">
         <div class="message admin">
             Вітаємо! Як можемо допомогти?
-            <div style="font-size: 12px; color: #666; margin-top: 5px;">Зараз</div>
+            <div class="message-time">Зараз</div>
         </div>
+    </div>
+    
+    <div class="typing-indicator" id="typingIndicator" style="display: none;">
+        Адміністратор друкує...
     </div>
     
     <div class="input-container">
@@ -114,12 +142,151 @@
         const userId = urlParams.get('user_id');
         const chatId = urlParams.get('chat_id');
         
-        console.log('User ID:', userId, 'Chat ID:', chatId);
+        let ws = null;
+        let isConnected = false;
+        let reconnectAttempts = 0;
+        const maxReconnectAttempts = 5;
+        
+        console.log('Параметри:', { userId, chatId });
         
         if (!userId || !chatId) {
             document.getElementById('status').textContent = 'Помилка: відсутні параметри';
         } else {
-            document.getElementById('status').textContent = 'Готово до спілкування';
+            connectWebSocket();
+        }
+        
+        function connectWebSocket() {
+            try {
+                // ГОЛОВНА ЗМІНА: Підключаємося через WebSocket до api_server.py
+                ws = new WebSocket(`ws://localhost:8001/ws/${chatId}`);
+                
+                ws.onopen = function() {
+                    console.log('WebSocket підключено');
+                    isConnected = true;
+                    reconnectAttempts = 0;
+                    document.getElementById('status').textContent = 'Підключено';
+                    
+                    // Запитуємо історію чату
+                    ws.send(JSON.stringify({
+                        type: 'get_history',
+                        chat_id: chatId
+                    }));
+                };
+                
+                ws.onmessage = function(event) {
+                    const data = JSON.parse(event.data);
+                    console.log('Отримано повідомлення:', data);
+                    
+                    switch(data.type) {
+                        case 'history':
+                            loadChatHistory(data.messages);
+                            break;
+                        case 'new_message':
+                            if (data.sender_type === 'admin') {
+                                addMessageToChat('admin', data.message, data.timestamp);
+                            }
+                            break;
+                        case 'typing':
+                            showTypingIndicator(data.is_typing);
+                            break;
+                    }
+                };
+                
+                ws.onclose = function() {
+                    console.log('WebSocket відключено');
+                    isConnected = false;
+                    document.getElementById('status').textContent = 'Відключено';
+                    
+                    // Спробуємо перепідключитися
+                    if (reconnectAttempts < maxReconnectAttempts) {
+                        reconnectAttempts++;
+                        console.log(`Спроба перепідключення ${reconnectAttempts}/${maxReconnectAttempts}`);
+                        setTimeout(connectWebSocket, 2000 * reconnectAttempts);
+                    }
+                };
+                
+                ws.onerror = function(error) {
+                    console.error('Помилка WebSocket:', error);
+                    document.getElementById('status').textContent = 'Помилка підключення';
+                };
+                
+            } catch (error) {
+                console.error('Помилка створення WebSocket:', error);
+                document.getElementById('status').textContent = 'Помилка підключення';
+            }
+        }
+        
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || !isConnected) {
+                console.log('Повідомлення порожнє або немає підключення');
+                return;
+            }
+            
+            // Отримуємо дані користувача з Telegram
+            const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
+            
+            // Відправляємо через WebSocket
+            const messageData = {
+                type: 'send_message',
+                message: message,
+                user_id: parseInt(userId),
+                chat_id: parseInt(chatId),
+                username: tgUser?.username || 'невідомо',
+                first_name: tgUser?.first_name || 'Користувач'
+            };
+            
+            console.log('Відправляємо:', messageData);
+            ws.send(JSON.stringify(messageData));
+            
+            // Додаємо повідомлення в чат локально
+            addMessageToChat('user', message);
+            messageInput.value = '';
+        }
+        
+        function loadChatHistory(messages) {
+            const chatContainer = document.getElementById('chatContainer');
+            // Очищуємо контейнер від початкового повідомлення
+            chatContainer.innerHTML = '';
+            
+            messages.forEach(msg => {
+                addMessageToChat(msg.sender_type, msg.message_text, msg.sent_at, false);
+            });
+            
+            // Якщо історії немає, показуємо привітання
+            if (messages.length === 0) {
+                addMessageToChat('admin', 'Вітаємо! Як можемо допомогти?', new Date().toISOString(), false);
+            }
+        }
+        
+        function addMessageToChat(sender, message, timestamp = null, scroll = true) {
+            const chatContainer = document.getElementById('chatContainer');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${sender}`;
+            
+            const time = timestamp ? new Date(timestamp) : new Date();
+            const timeStr = time.toLocaleTimeString('uk-UA', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            
+            messageDiv.innerHTML = `
+                ${message}
+                <div class="message-time">${timeStr}</div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+            
+            if (scroll) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+        
+        function showTypingIndicator(isTyping) {
+            const indicator = document.getElementById('typingIndicator');
+            indicator.style.display = isTyping ? 'block' : 'none';
         }
         
         // Обробка Enter для відправки повідомлення
@@ -129,69 +296,12 @@
             }
         });
         
-        function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
-            const message = messageInput.value.trim();
-            
-            if (!message) return;
-            
-            if (!userId || !chatId) {
-                alert('Помилка: відсутні необхідні параметри');
-                return;
-            }
-            
-            // Додаємо повідомлення в чат
-            addMessageToChat('user', message);
-            messageInput.value = '';
-            
-            // Отримуємо дані користувача з Telegram
-            const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
-            
-            // Формуємо дані для відправки
-            const dataToSend = {
-                action: 'send_message',
-                user_id: parseInt(userId),
-                chat_id: parseInt(chatId),
-                message: message,
-                username: tgUser?.username || 'невідомо',
-                first_name: tgUser?.first_name || 'Користувач'
-            };
-            
-            console.log('Відправляємо дані:', dataToSend);
-            
-            // ОСНОВНЕ ВИПРАВЛЕННЯ: Використовуємо Telegram WebApp API для відправки даних
-            window.Telegram.WebApp.sendData(JSON.stringify(dataToSend));
-        }
-        
-        function addMessageToChat(sender, message) {
-            const chatContainer = document.getElementById('chatContainer');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${sender}`;
-            
-            const now = new Date();
-            const timeStr = now.toLocaleTimeString('uk-UA', { 
-                hour: '2-digit', 
-                minute: '2-digit' 
-            });
-            
-            messageDiv.innerHTML = `
-                ${message}
-                <div style="font-size: 12px; opacity: 0.7; margin-top: 5px;">${timeStr}</div>
-            `;
-            
-            chatContainer.appendChild(messageDiv);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-        
-        // Обробка відповідей від бота (якщо потрібно)
-        window.Telegram.WebApp.onEvent('webAppDataSent', function() {
-            console.log('Дані відправлено до бота');
-        });
-        
-        // Налаштування кольорової схеми
+        // Налаштування кольорової схеми Telegram
         document.documentElement.style.setProperty('--tg-theme-bg-color', window.Telegram.WebApp.themeParams.bg_color || '#ffffff');
         document.documentElement.style.setProperty('--tg-theme-text-color', window.Telegram.WebApp.themeParams.text_color || '#000000');
         document.documentElement.style.setProperty('--tg-theme-button-color', window.Telegram.WebApp.themeParams.button_color || '#007AFF');
+        document.documentElement.style.setProperty('--tg-theme-secondary-bg-color', window.Telegram.WebApp.themeParams.secondary_bg_color || '#f1f1f1');
+        document.documentElement.style.setProperty('--tg-theme-hint-color', window.Telegram.WebApp.themeParams.hint_color || '#999999');
     </script>
 </body>
 </html>
