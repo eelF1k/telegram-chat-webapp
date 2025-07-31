@@ -255,6 +255,13 @@
             color: #495057;
         }
 
+        .chat-details {
+            display: none;
+            margin-top: 15px;
+            border-top: 1px solid #dee2e6;
+            padding-top: 15px;
+        }
+
         @media (max-width: 768px) {
             .tabs {
                 flex-direction: column;
@@ -329,71 +336,37 @@
     </div>
 
     <script>
-        // Моделюємо бази даних
+        // Глобальні змінні
         let chats = [];
         let users = {};
         let currentTab = 'active';
 
         // Ініціалізація
         document.addEventListener('DOMContentLoaded', function() {
-            loadInitialData();
-            setInterval(refreshChats, 5000); // Автооновлення кожні 5 секунд
+            loadRealChats();
+            setInterval(loadRealChats, 5000); // Автооновлення кожні 5 секунд
         });
 
-        function loadInitialData() {
-            // Завантажуємо дані з бази (симуляція)
-            loadChatsFromDatabase();
+        function loadRealChats() {
+            // Тут має бути запит до вашого API
+            // fetch('/api/chats')
+            //     .then(response => response.json())
+            //     .then(data => {
+            //         chats = data.chats || [];
+            //         users = data.users || {};
+            //         refreshChats();
+            //     })
+            //     .catch(error => {
+            //         console.error('Помилка завантаження чатів:', error);
+            //         chats = [];
+            //         users = {};
+            //         refreshChats();
+            //     });
+
+            // Поки що показуємо порожній стан
+            chats = [];
+            users = {};
             refreshChats();
-        }
-
-        function loadChatsFromDatabase() {
-            // Отримуємо дані з реального API або бази даних
-            // Поки що використовуємо симуляцію
-            
-            // Тут має бути запит до вашого API для отримання чатів
-            // fetch('/api/chats').then(response => response.json()).then(data => { ... });
-            
-            // Симуляція даних для демонстрації
-            if (chats.length === 0) {
-                initializeSampleData();
-            }
-        }
-
-        function initializeSampleData() {
-            // Створюємо тестові дані для демонстрації
-            const now = new Date();
-            
-            chats = [
-                {
-                    id: 1,
-                    user_id: 123456789,
-                    status: 'active',
-                    created_at: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
-                    updated_at: new Date(now - 30 * 60 * 1000).toISOString(),
-                    messages: [
-                        {
-                            id: 1,
-                            sender_type: 'user',
-                            message: 'Привіт! Допоможіть мені з ботом',
-                            sent_at: new Date(now - 2 * 60 * 60 * 1000).toISOString()
-                        },
-                        {
-                            id: 2,
-                            sender_type: 'admin',
-                            message: 'Привіт! Звичайно допоможу. Що саме вас цікавить?',
-                            sent_at: new Date(now - 90 * 60 * 1000).toISOString()
-                        }
-                    ]
-                }
-            ];
-
-            users = {
-                123456789: {
-                    first_name: 'Тестовий користувач',
-                    username: 'testuser',
-                    is_banned: false
-                }
-            };
         }
 
         function switchTab(tabName) {
@@ -495,7 +468,7 @@
                             </div>
                         ` : ''}
                         
-                        <div id="chat-details-${chat.id}" class="chat-details" style="display: none;">
+                        <div id="chat-details-${chat.id}" class="chat-details">
                             <div class="chat-messages" id="messages-${chat.id}">
                                 ${renderMessages(chat.messages || [])}
                             </div>
@@ -578,7 +551,7 @@
             messagesContainer.innerHTML = renderMessages(chat.messages);
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
             
-            // Тут має бути відправка повідомлення через Telegram API
+            // Відправляємо повідомлення через API
             sendMessageToUser(chat.user_id, message);
             
             console.log(`Відправлено повідомлення користувачу ${chat.user_id}: ${message}`);
@@ -598,7 +571,7 @@
                 // Оновлюємо відображення
                 refreshChats();
                 
-                // Тут має бути відправка запиту до API для закриття чату
+                // Відправляємо запит до API
                 closeChatInDatabase(chatId);
                 
                 console.log(`Чат ${chatId} закрито`);
@@ -621,7 +594,7 @@
             // Оновлюємо відображення
             refreshChats();
             
-            // Тут має бути відправка запиту до API для блокування/розблокування
+            // Відправляємо запит до API
             updateUserBanStatus(userId, user.is_banned);
             
             console.log(`Користувач ${userId} ${user.is_banned ? 'заблокований' : 'розблокований'}`);
@@ -642,9 +615,9 @@
             document.getElementById('messages-today').textContent = messagesToday;
         }
 
-        // API функції (треба реалізувати з вашим бекендом)
+        // API функції (необхідно реалізувати з вашим бекендом)
         function sendMessageToUser(userId, message) {
-            // Тут має бути запит до Telegram API через ваш бекенд
+            // Відправка повідомлення через Telegram API
             fetch('/api/send-message', {
                 method: 'POST',
                 headers: {
@@ -660,7 +633,7 @@
         }
 
         function closeChatInDatabase(chatId) {
-            // Тут має бути запит до API для закриття чату
+            // Закриття чату в базі даних
             fetch(`/api/chats/${chatId}/close`, {
                 method: 'POST',
             }).catch(error => {
@@ -669,7 +642,7 @@
         }
 
         function updateUserBanStatus(userId, isBanned) {
-            // Тут має бути запит до API для блокування/розблокування користувача
+            // Оновлення статусу блокування користувача
             fetch(`/api/users/${userId}/ban`, {
                 method: 'POST',
                 headers: {
@@ -682,27 +655,6 @@
                 console.error('Помилка оновлення статусу користувача:', error);
             });
         }
-
-        // Функція для отримання реальних даних з API
-        function loadRealChats() {
-            fetch('/api/chats')
-                .then(response => response.json())
-                .then(data => {
-                    chats = data.chats || [];
-                    users = data.users || {};
-                    refreshChats();
-                })
-                .catch(error => {
-                    console.error('Помилка завантаження чатів:', error);
-                });
-        }
-
-        // Автоматичне оновлення кожні 5 секунд
-        setInterval(() => {
-            if (currentTab !== 'stats') {
-                // loadRealChats(); // Розкоментуйте коли API буде готове
-            }
-        }, 5000);
     </script>
 </body>
 </html>
