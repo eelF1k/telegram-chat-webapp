@@ -328,103 +328,535 @@
     </div>
 
     <script>
-    let currentChatId = null;
-    let chats = [];
+    // БЕЗПЕЧНА ІНІЦІАЛІЗАЦІЯ Telegram WebApp
+    let tg;
     
-    // АВТОМАТИЧНЕ ОНОВЛЕННЯ списку чатів
-    async function loadAllChats() {
-        try {
-            // Імітуємо завантаження чатів (замініть на реальний API)
-            const response = await fetch('/api/admin/chats');
-            if (response.ok) {
-                chats = await response.json();
-                renderChatList();
-            }
-        } catch (error) {
-            console.error('Помилка завантаження чатів:', error);
-        }
+    if (window.Telegram && window.Telegram.WebApp) {
+        tg = window.Telegram.WebApp;
+        tg.ready();
+        tg.expand();
+        console.log('Telegram WebApp для адміна ініціалізовано успішно');
+    } else {
+        console.error('Telegram WebApp API недоступний');
+        document.body.innerHTML = '<div style="text-align: center; padding: 50px; font-family: Arial; color: #666;">⚠️ Адмін-панель працює тільки в Telegram WebApp<br><br>Відкрийте через команду /webchat в боті!</div>';
     }
     
-    // АВТОМАТИЧНЕ ОНОВЛЕННЯ повідомлень у поточному чаті
-    async function loadCurrentChatMessages() {
-        if (!currentChatId) return;
+    // Решта коду тільки якщо tg існує
+    if (tg) {
+        // Глобальні змінні
+        let currentChatId = null;
+        let allChats = [];
+        let currentFilter = 'all';
+        let selectedUserId = null;
+        let updateInterval = null;
         
-        try {
-            const response = await fetch(`/api/admin/chat/${currentChatId}/messages`);
-            if (response.ok) {
-                const messages = await response.json();
-                displayChatHistory(messages);
-            }
-        } catch (error) {
-            console.error('Помилка завантаження повідомлень:', error);
-        }
-    }
-    
-    function renderChatList() {
+        // Шаблони відповідей
+        const responseTemplates = [
+            'Дякуємо за звернення! Ми вже працюємо над вашим питанням.',
+            'Будь ласка, надайте більше деталей.',
+            'Вашу проблему вирішено. Дякуємо за звернення!',
+            'Передаю ваше питання спеціалісту.',
+            'На жаль, ця функція наразі недоступна. Слідкуйте за оновленнями.',
+            'Ваш запит опрацьовується. Очікуйте відповіді найближчим часом.',
+            'Спробуйте перезапустити бота командою /start',
+            'З технічних причин сервіс тимчасово недоступний.'
+        ];
+        
+        // DOM елементи
         const chatList = document.getElementById('chatList');
-        chatList.innerHTML = '';
+        const chatContainer = document.getElementById('chatMessages');
+        const replyTextArea = document.getElementById('replyText');
+        const sendReplyBtn = document.querySelector('.send-reply-btn');
+        const userFilter = document.getElementById('userFilter');
+        const searchBox = document.getElementById('searchBox');
+        const chatCount = document.getElementById('chatCount');
+        const typingIndicator = document.getElementById('typingIndicator');
         
-        chats.forEach(chat => {
-            const chatItem = document.createElement('div');
-            chatItem.className = 'chat-item';
-            chatItem.onclick = () => selectChat(chat.chat_id);
+        // Завантаження всіх чатів з локального збереження (для тестування)
+        async function loadAllChats() {
+            try {
+                console.log('Завантаження списку чатів...');
+                
+                // Моковані дані для тестування (замініть на реальний API)
+                const mockChats = [
+                    {
+                        chat_id: 1,
+                        user_id: 6778182293,
+                        first_name: 'Тестовий',
+                        username: 'testuser',
+                        status: 'new',
+                        message_count: 3,
+                        last_message: 'Привіт! Можете допомогти?',
+                        updated_at: new Date().toISOString(),
+                        unread_count: 2
+                    },
+                    {
+                        chat_id: 2,
+                        user_id: 123456789,
+                        first_name: 'Інший',
+                        username: 'anotheruser',
+                        status: 'waiting',
+                        message_count: 1,
+                        last_message: 'Чекаю відповіді',
+                        updated_at: new Date(Date.now() - 3600000).toISOString(),
+                        unread_count: 1
+                    }
+                ];
+                
+                // В реальному проекті замініть на:
+                // const response = await fetch('/api/admin/chats');
+                // if (response.ok) {
+                //     allChats = await response.json();
+                // }
+                
+                allChats = mockChats;
+                updateUserFilter();
+                renderChatList();
+                
+            } catch (error) {
+                console.error('Помилка завантаження чатів:', error);
+            }
+        }
+        
+        // Оновлення фільтра користувачів
+        function updateUserFilter() {
+            if (!userFilter) return;
             
-            chatItem.innerHTML = `
-                <div class="chat-name">${chat.first_name || 'Користувач'} (@${chat.username || 'невідомо'})</div>
-                <div class="chat-preview">${chat.last_message || 'Повідомлень немає'}</div>
-                <div class="chat-time">${formatTime(chat.updated_at)}</div>
+            const uniqueUsers = new Map();
+            
+            allChats.forEach(chat => {
+                if (chat.user_id && !uniqueUsers.has(chat.user_id)) {
+                    uniqueUsers.set(chat.user_id, {
+                        id: chat.user_id,
+                        name: chat.first_name || 'Користувач',
+                        username: chat.username || 'невідомо'
+                    });
+                }
+            });
+            
+            userFilter.innerHTML = '<option value="">Всі користувачі</option>';
+            
+            uniqueUsers.forEach(user => {
+                const option = document.createElement('option');
+                option.value = user.id;
+                option.textContent = `${user.name} (@${user.username})`;
+                userFilter.appendChild(option);
+            });
+        }
+        
+        // Фільтрація та відображення списку чатів
+        function renderChatList() {
+            if (!chatList) return;
+            
+            const searchTerm = searchBox ? searchBox.value.toLowerCase() : '';
+            
+            // Фільтруємо чати
+            let filteredChats = allChats.filter(chat => {
+                // Фільтр по статусу
+                const matchesStatus = currentFilter === 'all' || chat.status === currentFilter;
+                
+                // Фільтр по користувачу
+                const matchesUser = !selectedUserId || chat.user_id == selectedUserId;
+                
+                // Фільтр по пошуку
+                const matchesSearch = !searchTerm || 
+                    (chat.first_name && chat.first_name.toLowerCase().includes(searchTerm)) ||
+                    (chat.username && chat.username.toLowerCase().includes(searchTerm));
+                
+                return matchesStatus && matchesUser && matchesSearch;
+            });
+            
+            // Сортуємо по часу оновлення
+            filteredChats.sort((a, b) => new Date(b.updated_at) - new Date(a.updated_at));
+            
+            chatList.innerHTML = '';
+            
+            if (chatCount) {
+                chatCount.textContent = `${filteredChats.length} чатів`;
+            }
+            
+            filteredChats.forEach(chat => {
+                const chatItem = document.createElement('div');
+                chatItem.className = `chat-item ${chat.status}`;
+                
+                if (chat.unread_count > 0) {
+                    chatItem.classList.add('unread');
+                }
+                
+                if (currentChatId === chat.chat_id) {
+                    chatItem.classList.add('active');
+                }
+                
+                chatItem.onclick = () => selectChat(chat.chat_id);
+                
+                const lastMessage = chat.last_message || 'Повідомлень немає';
+                const timeStr = formatTime(chat.updated_at);
+                
+                chatItem.innerHTML = `
+                    <div class="chat-name">${chat.first_name || 'Користувач'} (@${chat.username || 'невідомо'})</div>
+                    <div class="chat-preview">${lastMessage}</div>
+                    <div class="chat-time">${timeStr}</div>
+                `;
+                
+                chatList.appendChild(chatItem);
+            });
+        }
+        
+        // Вибір чату
+        function selectChat(chatId) {
+            currentChatId = chatId;
+            
+            // Оновлюємо активний чат у списку
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            event.target.closest('.chat-item').classList.add('active');
+            
+            // Показуємо область чату
+            const noChatSelected = document.getElementById('noChatSelected');
+            const chatArea = document.getElementById('chatArea');
+            
+            if (noChatSelected) noChatSelected.style.display = 'none';
+            if (chatArea) chatArea.style.display = 'flex';
+            
+            // Завантажуємо історію чату
+            loadChatHistory(chatId);
+            
+            // Оновлюємо інформацію про користувача
+            const chat = allChats.find(c => c.chat_id === chatId);
+            if (chat) {
+                const userNameElement = document.getElementById('currentUserName');
+                const userStatusElement = document.getElementById('currentUserStatus');
+                
+                if (userNameElement) {
+                    userNameElement.textContent = `${chat.first_name || 'Користувач'} (@${chat.username || 'невідомо'})`;
+                }
+                
+                if (userStatusElement) {
+                    userStatusElement.textContent = `Остання активність: ${formatTime(chat.updated_at)}`;
+                }
+            }
+        }
+        
+        // Завантаження історії чату
+        async function loadChatHistory(chatId) {
+            try {
+                console.log(`Завантаження історії чату ${chatId}`);
+                
+                // Моковані повідомлення для тестування
+                const mockMessages = [
+                    {
+                        message_text: 'Привіт! Можете допомогти з проблемою?',
+                        sender_type: 'user',
+                        sent_at: new Date(Date.now() - 7200000).toISOString()
+                    },
+                    {
+                        message_text: 'Звичайно! Опишіть детальніше вашу проблему.',
+                        sender_type: 'admin',
+                        sent_at: new Date(Date.now() - 3600000).toISOString()
+                    },
+                    {
+                        message_text: 'У мене не працює функція пошуку курсів',
+                        sender_type: 'user',
+                        sent_at: new Date(Date.now() - 1800000).toISOString()
+                    }
+                ];
+                
+                // В реальному проекті замініть на:
+                // const response = await fetch(`/api/admin/chat/${chatId}/messages`);
+                // if (response.ok) {
+                //     const messages = await response.json();
+                //     displayChatHistory(messages);
+                // }
+                
+                displayChatHistory(mockMessages);
+                
+            } catch (error) {
+                console.error('Помилка завантаження історії чату:', error);
+            }
+        }
+        
+        // Відображення історії чату
+        function displayChatHistory(messages) {
+            if (!chatContainer) return;
+            
+            // Додаємо кнопки фільтрації повідомлень
+            if (!document.getElementById('messageFilters')) {
+                addMessageFilters(messages);
+            }
+            
+            renderMessages(messages);
+        }
+        
+        // Додавання кнопок фільтрації повідомлень
+        function addMessageFilters(messages) {
+            const filtersDiv = document.createElement('div');
+            filtersDiv.id = 'messageFilters';
+            filtersDiv.style.cssText = 'margin-bottom: 15px; text-align: center;';
+            filtersDiv.innerHTML = `
+                <button class="message-filter-btn active" data-type="all">Всі повідомлення</button>
+                <button class="message-filter-btn" data-type="user">Тільки від користувача</button>
+                <button class="message-filter-btn" data-type="admin">Тільки від адмінів</button>
             `;
             
-            chatList.appendChild(chatItem);
+            chatContainer.parentNode.insertBefore(filtersDiv, chatContainer);
+            
+            // Обробники подій для кнопок фільтрації
+            document.querySelectorAll('.message-filter-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    document.querySelectorAll('.message-filter-btn').forEach(b => b.classList.remove('active'));
+                    e.target.classList.add('active');
+                    
+                    const filterType = e.target.dataset.type;
+                    const filteredMessages = filterMessagesInChat(messages, filterType);
+                    renderMessages(filteredMessages);
+                });
+            });
+        }
+        
+        // Фільтрація повідомлень в чаті
+        function filterMessagesInChat(messages, filterType = 'all') {
+            if (filterType === 'all') return messages;
+            
+            return messages.filter(message => {
+                if (filterType === 'user') return message.sender_type === 'user';
+                if (filterType === 'admin') return message.sender_type === 'admin';
+                return true;
+            });
+        }
+        
+        // Відображення повідомлень
+        function renderMessages(messages) {
+            if (!chatContainer) return;
+            
+            chatContainer.innerHTML = '';
+            
+            messages.forEach(message => {
+                addMessageToChat(message.message_text, message.sender_type === 'user', message.sent_at);
+            });
+            
+            // Інформація про кількість повідомлень
+            const filterInfo = document.createElement('div');
+            filterInfo.style.cssText = 'text-align: center; color: #666; font-size: 12px; margin-top: 10px;';
+            filterInfo.textContent = `Показано ${messages.length} повідомлень`;
+            chatContainer.appendChild(filterInfo);
+            
+            scrollToBottom();
+        }
+        
+        // Додавання повідомлення до чату
+        function addMessageToChat(text, isUser, timestamp) {
+            if (!chatContainer) return;
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
+            
+            const timeStr = formatTime(timestamp);
+            
+            messageDiv.innerHTML = `
+                ${text}
+                <div class="message-time">${timeStr}</div>
+            `;
+            
+            chatContainer.appendChild(messageDiv);
+        }
+        
+        // Відправка відповіді
+        function sendReply() {
+            if (!replyTextArea || !currentChatId) return;
+            
+            const message = replyTextArea.value.trim();
+            if (!message) return;
+            
+            console.log(`Відправка відповіді в чат ${currentChatId}: ${message}`);
+            
+            // Додаємо повідомлення в інтерфейс
+            addMessageToChat(message, false, new Date().toISOString());
+            replyTextArea.value = '';
+            
+            // Відправляємо через WebApp API
+            const data = {
+                action: 'admin_reply',
+                chat_id: currentChatId,
+                message: message,
+                admin_id: tg.initDataUnsafe?.user?.id,
+                timestamp: new Date().toISOString()
+            };
+            
+            try {
+                tg.sendData(JSON.stringify(data));
+                console.log('Відповідь адміна надіслано успішно');
+            } catch (error) {
+                console.error('Помилка відправки відповіді:', error);
+            }
+            
+            // Оновлюємо список чатів
+            setTimeout(loadAllChats, 1000);
+        }
+        
+        // Вставка шаблону відповіді
+        function insertTemplate(text) {
+            if (replyTextArea) {
+                replyTextArea.value = text;
+                replyTextArea.focus();
+            }
+        }
+        
+        // Блокування користувача
+        function blockUser() {
+            if (!currentChatId) return;
+            
+            if (confirm('Ви впевнені, що хочете заблокувати цього користувача?')) {
+                const data = {
+                    action: 'block_user',
+                    chat_id: currentChatId,
+                    admin_id: tg.initDataUnsafe?.user?.id
+                };
+                
+                try {
+                    tg.sendData(JSON.stringify(data));
+                    console.log('Користувача заблоковано');
+                } catch (error) {
+                    console.error('Помилка блокування:', error);
+                }
+            }
+        }
+        
+        // Закриття чату
+        function closeCurrentChat() {
+            if (!currentChatId) return;
+            
+            if (confirm('Закрити цей чат?')) {
+                const data = {
+                    action: 'close_chat',
+                    chat_id: currentChatId,
+                    admin_id: tg.initDataUnsafe?.user?.id
+                };
+                
+                try {
+                    tg.sendData(JSON.stringify(data));
+                    console.log('Чат закрито');
+                    
+                    // Очищуємо інтерфейс
+                    document.getElementById('noChatSelected').style.display = 'flex';
+                    document.getElementById('chatArea').style.display = 'none';
+                    currentChatId = null;
+                    
+                } catch (error) {
+                    console.error('Помилка закриття чату:', error);
+                }
+            }
+        }
+        
+        // Показ індикатора друкування
+        function showTypingIndicator(isTyping) {
+            if (typingIndicator) {
+                if (isTyping) {
+                    typingIndicator.classList.add('show');
+                } else {
+                    typingIndicator.classList.remove('show');
+                }
+            }
+        }
+        
+        // Форматування часу
+        function formatTime(timestamp) {
+            if (!timestamp) return '';
+            
+            const date = new Date(timestamp);
+            const now = new Date();
+            
+            if (date.toDateString() === now.toDateString()) {
+                return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            } else {
+                return date.toLocaleDateString('uk-UA', { 
+                    day: '2-digit', 
+                    month: '2-digit',
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                });
+            }
+        }
+        
+        // Прокрутка до низу
+        function scrollToBottom() {
+            if (chatContainer) {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+        }
+        
+        // Події
+        if (userFilter) {
+            userFilter.addEventListener('change', (e) => {
+                selectedUserId = e.target.value;
+                renderChatList();
+            });
+        }
+        
+        if (searchBox) {
+            searchBox.addEventListener('input', renderChatList);
+        }
+        
+        if (sendReplyBtn) {
+            sendReplyBtn.addEventListener('click', sendReply);
+        }
+        
+        if (replyTextArea) {
+            replyTextArea.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendReply();
+                }
+            });
+        }
+        
+        // Обробники фільтрів статусу
+        document.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                e.target.classList.add('active');
+                currentFilter = e.target.dataset.filter;
+                renderChatList();
+            });
         });
-    }
-    
-    function selectChat(chatId) {
-        currentChatId = chatId;
-        document.getElementById('noChatSelected').style.display = 'none';
-        document.getElementById('chatArea').style.display = 'flex';
         
-        // Завантажуємо повідомлення
-        loadCurrentChatMessages();
-    }
-    
-    function displayChatHistory(messages) {
-        const chatMessages = document.getElementById('chatMessages');
-        chatMessages.innerHTML = '';
-        
-        messages.forEach(message => {
-            addMessageToChat(message.message_text, message.sender_type === 'user', message.sent_at);
+        // Кнопки шаблонів
+        document.querySelectorAll('.template-btn').forEach((btn, index) => {
+            btn.addEventListener('click', () => {
+                if (responseTemplates[index]) {
+                    insertTemplate(responseTemplates[index]);
+                }
+            });
         });
-    }
-    
-    function addMessageToChat(text, isUser, timestamp) {
-        const chatMessages = document.getElementById('chatMessages');
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
         
-        messageDiv.innerHTML = `
-            ${text}
-            <div class="message-time">${formatTime(timestamp)}</div>
-        `;
+        // Глобальні функції для HTML
+        window.blockUser = blockUser;
+        window.closeCurrentChat = closeCurrentChat;
+        window.insertTemplate = insertTemplate;
         
-        chatMessages.appendChild(messageDiv);
-        chatMessages.scrollTop = chatMessages.scrollHeight;
-    }
-    
-    function formatTime(timestamp) {
-        if (!timestamp) return '';
-        const date = new Date(timestamp);
-        return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
-    }
-    
-    // АВТОМАТИЧНЕ ОНОВЛЕННЯ кожні 5 секунд
-    setInterval(() => {
+        // АВТОМАТИЧНЕ ОНОВЛЕННЯ кожні 10 секунд
+        updateInterval = setInterval(() => {
+            loadAllChats();
+            if (currentChatId) {
+                loadChatHistory(currentChatId);
+            }
+        }, 10000);
+        
+        // Очищуємо інтервал при закритті
+        window.addEventListener('beforeunload', () => {
+            if (updateInterval) {
+                clearInterval(updateInterval);
+            }
+        });
+        
+        // Початкова ініціалізація
+        console.log('Ініціалізація адмін-панелі...');
         loadAllChats();
-        loadCurrentChatMessages();
-    }, 5000);
-    
-    // Початкове завантаження
-    loadAllChats();
+        
+        console.log('Адмін-панель ініціалізовано успішно!');
+    }
 </script>
+
 </body>
 </html>
