@@ -63,6 +63,7 @@
             font-size: 11px;
             opacity: 0.7;
             margin-top: 5px;
+            color: var(--tg-theme-hint-color, #666);
         }
         
         .message-status {
@@ -175,281 +176,286 @@
     <button class="close-chat-btn" onclick="closeChat()">Закрити чат</button>
 
     <script>
-    // БЕЗПЕЧНА ІНІЦІАЛІЗАЦІЯ Telegram WebApp
-    let tg;
-    
-    if (window.Telegram && window.Telegram.WebApp) {
-        tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
-        console.log('Telegram WebApp ініціалізовано успішно');
-    } else {
-        console.error('Telegram WebApp API недоступний. Відкрийте через Telegram!');
-        document.body.innerHTML = '<div style="text-align: center; padding: 50px; font-family: Arial; color: #666;">⚠️ Цей чат працює тільки в Telegram WebApp<br><br>Відкрийте через бота в Telegram!</div>';
-    }
-    
-    // Решта коду тільки якщо tg існує
-    if (tg) {
-        const chatContainer = document.getElementById('chatContainer');
-        const messageInput = document.getElementById('messageInput');
-        const sendButton = document.getElementById('sendButton');
-        const typingIndicator = document.getElementById('typingIndicator');
+        console.log('Початок завантаження скрипта чату...');
+        console.log('window.Telegram:', window.Telegram);
         
-        // Отримуємо дані користувача та параметри
-        const user = tg.initDataUnsafe?.user;
-        const urlParams = new URLSearchParams(window.location.search);
-        const userId = urlParams.get('user_id');
-        const chatId = urlParams.get('chat_id');
-        
-        // Зберігаємо всі повідомлення
-        let messages = [];
-        let lastMessageCount = 0;
-        
-        // Функція для додавання повідомлення в інтерфейс
-        function addMessage(text, isUser = false, timestamp = null, isRead = false) {
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
-            
-            const timeStr = timestamp ? formatTime(timestamp) : formatTime(new Date().toISOString());
-            let statusIcon = '';
-            
-            if (isUser) {
-                statusIcon = isRead ? '<span class="status-read">✓✓</span>' : '<span class="status-delivered">✓</span>';
+        // Чекаємо завантаження Telegram API
+        function waitForTelegram(callback, attempts = 0) {
+            if (attempts > 10) {
+                console.error('Telegram WebApp API не завантажився після 10 спроб');
+                document.body.innerHTML = '<div style="text-align: center; padding: 50px; font-family: Arial;">❌ Помилка завантаження Telegram WebApp API<br><br>Спробуйте перезапустити бота або оновити Telegram<br><br><button onclick="location.reload()" style="padding: 10px 20px; margin-top: 10px;">Оновити сторінку</button></div>';
+                return;
             }
             
-            messageDiv.innerHTML = `
-                ${text}
-                <div class="message-time">${timeStr} ${statusIcon}</div>
-            `;
-            
-            chatContainer.appendChild(messageDiv);
-            scrollToBottom();
-        }
-        
-        // Форматування часу
-        function formatTime(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            
-            if (date.toDateString() === now.toDateString()) {
-                return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            if (window.Telegram && window.Telegram.WebApp) {
+                console.log('Telegram WebApp API знайдено!');
+                callback();
             } else {
-                return date.toLocaleDateString('uk-UA', { 
-                    day: '2-digit', 
-                    month: '2-digit',
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                });
+                console.log(`Спроба ${attempts + 1}: Очікуємо Telegram API...`);
+                setTimeout(() => waitForTelegram(callback, attempts + 1), 500);
             }
         }
         
-        // Прокрутка до низу
-        function scrollToBottom() {
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
+        // Ініціалізуємо після завантаження
+        waitForTelegram(() => {
+            const tg = window.Telegram.WebApp;
+            tg.ready();
+            tg.expand();
+            console.log('Telegram WebApp успішно ініціалізовано!');
+            
+            initChat();
+        });
         
-        // Показ індикатора "друкує..."
-        function showTypingIndicator(isTyping) {
-            if (typingIndicator) {
+        function initChat() {
+            console.log('Ініціалізація чату...');
+            
+            const chatContainer = document.getElementById('chatContainer');
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const typingIndicator = document.getElementById('typingIndicator');
+            const connectionStatus = document.getElementById('connectionStatus');
+            
+            // Отримуємо параметри з URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const userId = urlParams.get('user_id');
+            const chatId = urlParams.get('chat_id');
+            
+            // Отримуємо дані користувача
+            const user = window.Telegram.WebApp.initDataUnsafe?.user;
+            
+            let messages = [];
+            let lastMessageCount = 0;
+            
+            // Функція для додавання повідомлення
+            function addMessage(text, isUser = false, timestamp = null, isRead = false) {
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
+                
+                const timeStr = timestamp ? formatTime(timestamp) : formatTime(new Date().toISOString());
+                let statusIcon = '';
+                
+                if (isUser) {
+                    statusIcon = isRead ? '<span class="status-read">✓✓</span>' : '<span class="status-delivered">✓</span>';
+                }
+                
+                messageDiv.innerHTML = `
+                    ${text}
+                    <div class="message-time">${timeStr} ${statusIcon}</div>
+                `;
+                
+                chatContainer.appendChild(messageDiv);
+                scrollToBottom();
+            }
+            
+            function formatTime(timestamp) {
+                const date = new Date(timestamp);
+                const now = new Date();
+                
+                if (date.toDateString() === now.toDateString()) {
+                    return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    return date.toLocaleDateString('uk-UA', { 
+                        day: '2-digit', 
+                        month: '2-digit',
+                        hour: '2-digit', 
+                        minute: '2-digit' 
+                    });
+                }
+            }
+            
+            function scrollToBottom() {
+                chatContainer.scrollTop = chatContainer.scrollHeight;
+            }
+            
+            function showTypingIndicator(isTyping) {
                 if (isTyping) {
                     typingIndicator.classList.add('show');
                 } else {
                     typingIndicator.classList.remove('show');
                 }
             }
-        }
-        
-        // Завантаження історії чату
-        async function loadChatHistory() {
-            try {
-                console.log(`Завантаження історії для чату ${chatId}`);
-                
-                // Імітація запиту до API (замініть на реальний URL вашого сервера)
-                // const response = await fetch(`/api/messages/${chatId}`);
-                
-                // Поки що використовуємо локальне збереження або моковані дані
-                const mockMessages = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
-                
-                if (mockMessages.length > lastMessageCount) {
-                    // Очищуємо контейнер
-                    chatContainer.innerHTML = '';
+            
+            // Завантаження історії чату
+            async function loadChatHistory() {
+                try {
+                    console.log(`Завантаження історії для чату ${chatId}`);
                     
-                    // Додаємо вітальне повідомлення
-                    addMessage("Вітаємо! Як можемо допомогти?", false, new Date().toISOString());
+                    // Моковані дані для тестування
+                    const mockMessages = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
                     
-                    // Додаємо всі повідомлення
-                    mockMessages.forEach(msg => {
-                        addMessage(msg.text, msg.sender_type === 'user', msg.timestamp, msg.is_read);
-                    });
-                    
-                    lastMessageCount = mockMessages.length;
+                    if (mockMessages.length > lastMessageCount) {
+                        // Очищуємо контейнер
+                        chatContainer.innerHTML = '';
+                        
+                        // Додаємо вітальне повідомлення
+                        addMessage("Вітаємо! Як можемо допомогти?", false, new Date().toISOString());
+                        
+                        // Додаємо всі повідомлення
+                        mockMessages.forEach(msg => {
+                            addMessage(msg.text, msg.sender_type === 'user', msg.timestamp, msg.is_read);
+                        });
+                        
+                        lastMessageCount = mockMessages.length;
+                    }
+                } catch (error) {
+                    console.error('Помилка завантаження історії чату:', error);
                 }
-            } catch (error) {
-                console.error('Помилка завантаження історії чату:', error);
-            }
-        }
-        
-        // Збереження повідомлення локально (для тестування)
-        function saveMessageLocally(message, isUser) {
-            const messages = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
-            messages.push({
-                text: message,
-                sender_type: isUser ? 'user' : 'admin',
-                timestamp: new Date().toISOString(),
-                is_read: false
-            });
-            localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
-        }
-        
-        // Відправка повідомлення
-        function sendMessage() {
-            const message = messageInput.value.trim();
-            if (!message) return;
-            
-            console.log('Відправляємо повідомлення:', message);
-            
-            // Додаємо повідомлення в інтерфейс МИТТЄВО
-            addMessage(message, true);
-            messageInput.value = '';
-            adjustTextareaHeight();
-            
-            // Зберігаємо локально для тестування
-            saveMessageLocally(message, true);
-            
-            // Формуємо дані для відправки боту
-            const data = {
-                action: 'send_message',
-                message: message,
-                user_id: userId,
-                chat_id: chatId,
-                username: user?.username || 'невідомо',
-                first_name: user?.first_name || 'Користувач',
-                timestamp: new Date().toISOString()
-            };
-            
-            console.log('Дані для відправки боту:', data);
-            
-            // Відправляємо дані боту через Telegram WebApp API
-            try {
-                tg.sendData(JSON.stringify(data));
-                console.log('Дані надіслано боту успішно');
-            } catch (error) {
-                console.error('Помилка відправки даних боту:', error);
             }
             
-            // Оновлюємо історію через кілька секунд для отримання відповіді
-            setTimeout(loadChatHistory, 3000);
-        }
-        
-        // Закриття чату
-        function closeChat() {
-            if (confirm('Ви впевнені, що хочете закрити чат?')) {
+            // Збереження повідомлення локально
+            function saveMessageLocally(message, isUser) {
+                const messages = JSON.parse(localStorage.getItem(`chat_${chatId}`) || '[]');
+                messages.push({
+                    text: message,
+                    sender_type: isUser ? 'user' : 'admin',
+                    timestamp: new Date().toISOString(),
+                    is_read: false
+                });
+                localStorage.setItem(`chat_${chatId}`, JSON.stringify(messages));
+            }
+            
+            // Відправляємо повідомлення
+            function sendMessage() {
+                const message = messageInput.value.trim();
+                if (!message) return;
+                
+                console.log('Відправляємо повідомлення:', message);
+                
+                // Додаємо повідомлення в інтерфейс МИТТЄВО
+                addMessage(message, true);
+                messageInput.value = '';
+                adjustTextareaHeight();
+                
+                // Зберігаємо локально для тестування
+                saveMessageLocally(message, true);
+                
+                // Відправляємо боту через Telegram WebApp API
                 const data = {
-                    action: 'close_chat',
+                    action: 'send_message',
+                    message: message,
+                    user_id: userId,
                     chat_id: chatId,
-                    user_id: userId
+                    username: user?.username || 'невідомо',
+                    first_name: user?.first_name || 'Користувач',
+                    timestamp: new Date().toISOString()
                 };
                 
+                console.log('Дані для відправки боту:', data);
+                
                 try {
-                    tg.sendData(JSON.stringify(data));
-                    tg.close();
+                    window.Telegram.WebApp.sendData(JSON.stringify(data));
+                    console.log('Дані надіслано боту успішно');
                 } catch (error) {
-                    console.error('Помилка закриття чату:', error);
-                    tg.close();
+                    console.error('Помилка відправки даних боту:', error);
+                }
+                
+                // Оновлюємо історію через кілька секунд
+                setTimeout(loadChatHistory, 3000);
+            }
+            
+            function closeChat() {
+                if (confirm('Ви впевнені, що хочете закрити чат?')) {
+                    const data = {
+                        action: 'close_chat',
+                        chat_id: chatId,
+                        user_id: userId
+                    };
+                    
+                    try {
+                        window.Telegram.WebApp.sendData(JSON.stringify(data));
+                        window.Telegram.WebApp.close();
+                    } catch (error) {
+                        console.error('Помилка закриття чату:', error);
+                        window.Telegram.WebApp.close();
+                    }
                 }
             }
-        }
-        
-        // Автоматична зміна висоти поля введення
-        function adjustTextareaHeight() {
-            if (messageInput.tagName === 'TEXTAREA') {
-                messageInput.style.height = 'auto';
-                messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
+            
+            // Автоматична зміна висоти поля введення
+            function adjustTextareaHeight() {
+                if (messageInput.tagName === 'TEXTAREA') {
+                    messageInput.style.height = 'auto';
+                    messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
+                }
             }
-        }
-        
-        // Обробка набору тексту
-        let typingTimer;
-        function handleTyping() {
-            clearTimeout(typingTimer);
             
-            // Сповіщаємо про набір тексту (через WebSocket або API)
-            console.log('Користувач друкує...');
+            // Обробка набору тексту
+            let typingTimer;
+            function handleTyping() {
+                clearTimeout(typingTimer);
+                console.log('Користувач друкує...');
+                
+                typingTimer = setTimeout(() => {
+                    console.log('Користувач перестав друкувати');
+                }, 1000);
+            }
             
-            typingTimer = setTimeout(() => {
-                console.log('Користувач перестав друкувати');
-            }, 1000);
-        }
-        
-        // Події
-        if (sendButton) {
-            sendButton.addEventListener('click', sendMessage);
-        }
-        
-        if (messageInput) {
-            messageInput.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                    e.preventDefault();
-                    sendMessage();
+            // Події
+            if (sendButton) {
+                sendButton.addEventListener('click', sendMessage);
+            }
+            
+            if (messageInput) {
+                messageInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        sendMessage();
+                    }
+                });
+                
+                messageInput.addEventListener('input', () => {
+                    adjustTextareaHeight();
+                    handleTyping();
+                });
+            }
+            
+            // Глобальні функції
+            window.closeChat = closeChat;
+            
+            // АВТОМАТИЧНЕ ОНОВЛЕННЯ кожні 5 секунд
+            const updateInterval = setInterval(() => {
+                loadChatHistory();
+            }, 5000);
+            
+            // Очищуємо інтервал при закритті сторінки
+            window.addEventListener('beforeunload', () => {
+                clearInterval(updateInterval);
+            });
+            
+            // Початкова ініціалізація
+            if (user && userId && chatId) {
+                console.log(`Ініціалізація чату для користувача ${user.first_name} (ID: ${userId})`);
+                
+                // Початкове завантаження історії
+                loadChatHistory();
+                
+                // Вітальне повідомлення
+                setTimeout(() => {
+                    if (chatContainer.children.length <= 1) {
+                        addMessage(`Привіт, ${user.first_name}! Напишіть ваше питання, і адміністратор вам відповість.`, false);
+                    }
+                }, 1000);
+                
+            } else {
+                console.error('Не вдалося отримати дані користувача або параметри чату');
+                addMessage('Помилка ініціалізації чату. Спробуйте перезапустити.', false);
+            }
+            
+            // Налаштування теми Telegram
+            if (window.Telegram.WebApp.colorScheme) {
+                document.body.classList.add(`theme-${window.Telegram.WebApp.colorScheme}`);
+            }
+            
+            // Обробка зміни теми
+            window.Telegram.WebApp.onEvent('themeChanged', () => {
+                document.body.className = '';
+                if (window.Telegram.WebApp.colorScheme) {
+                    document.body.classList.add(`theme-${window.Telegram.WebApp.colorScheme}`);
                 }
             });
             
-            messageInput.addEventListener('input', () => {
-                adjustTextareaHeight();
-                handleTyping();
-            });
+            console.log('Чат ініціалізовано успішно!');
         }
-        
-        // Закриття чату (якщо є кнопка)
-        const closeChatBtn = document.querySelector('.close-chat-btn');
-        if (closeChatBtn) {
-            closeChatBtn.addEventListener('click', closeChat);
-        }
-        
-        // АВТОМАТИЧНЕ ОНОВЛЕННЯ кожні 5 секунд
-        const updateInterval = setInterval(() => {
-            loadChatHistory();
-        }, 5000);
-        
-        // Очищуємо інтервал при закритті сторінки
-        window.addEventListener('beforeunload', () => {
-            clearInterval(updateInterval);
-        });
-        
-        // Початкова ініціалізація
-        if (user && userId && chatId) {
-            console.log(`Ініціалізація чату для користувача ${user.first_name} (ID: ${userId})`);
-            
-            // Початкове завантаження історії
-            loadChatHistory();
-            
-            // Вітальне повідомлення
-            setTimeout(() => {
-                if (chatContainer.children.length <= 1) {
-                    addMessage(`Привіт, ${user.first_name}! Напишіть ваше питання, і адміністратор вам відповість.`, false);
-                }
-            }, 1000);
-            
-        } else {
-            console.error('Не вдалося отримати дані користувача або параметри чату');
-            addMessage('Помилка ініціалізації чату. Спробуйте перезапустити.', false);
-        }
-        
-        // Налаштування теми Telegram
-        if (tg.colorScheme) {
-            document.body.classList.add(`theme-${tg.colorScheme}`);
-        }
-        
-        // Обробка зміни теми
-        tg.onEvent('themeChanged', () => {
-            document.body.className = '';
-            if (tg.colorScheme) {
-                document.body.classList.add(`theme-${tg.colorScheme}`);
-            }
-        });
-        
-        console.log('Чат ініціалізовано успішно!');
-    }
-</script>
+    </script>
 </body>
 </html>
