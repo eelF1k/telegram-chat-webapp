@@ -117,10 +117,7 @@
     </div>
     
     <div class="chat-container" id="chatContainer">
-        <div class="message admin">
-            Вітаємо! Як можемо допомогти?
-            <div class="message-time">Зараз</div>
-        </div>
+        <!-- Повідомлення будуть додаватися тут -->
     </div>
     
     <div class="typing-indicator" id="typingIndicator" style="display: none;">
@@ -137,7 +134,7 @@
         window.Telegram.WebApp.ready();
         window.Telegram.WebApp.expand();
         
-        // Отримуємо параметри з URL
+        // Отримуємо параметри з URL (як в admin_chat.html)
         const urlParams = new URLSearchParams(window.location.search);
         const userId = urlParams.get('user_id');
         const chatId = urlParams.get('chat_id');
@@ -147,7 +144,7 @@
         let reconnectAttempts = 0;
         const maxReconnectAttempts = 5;
         
-        console.log('Параметри:', { userId, chatId });
+        console.log('Параметри користувача:', { userId, chatId });
         
         if (!userId || !chatId) {
             document.getElementById('status').textContent = 'Помилка: відсутні параметри';
@@ -157,16 +154,16 @@
         
         function connectWebSocket() {
             try {
-                // ГОЛОВНА ЗМІНА: Підключаємося через WebSocket до api_server.py
+                // ТОЧНО ТАК ЯК В ADMIN_CHAT.HTML: підключаємося до WebSocket
                 ws = new WebSocket(`ws://localhost:8001/ws/${chatId}`);
                 
                 ws.onopen = function() {
-                    console.log('WebSocket підключено');
+                    console.log('✅ WebSocket підключено');
                     isConnected = true;
                     reconnectAttempts = 0;
                     document.getElementById('status').textContent = 'Підключено';
                     
-                    // Запитуємо історію чату
+                    // ТАК ЯК В ADMIN_CHAT.HTML: запитуємо історію чату
                     ws.send(JSON.stringify({
                         type: 'get_history',
                         chat_id: chatId
@@ -175,8 +172,9 @@
                 
                 ws.onmessage = function(event) {
                     const data = JSON.parse(event.data);
-                    console.log('Отримано повідомлення:', data);
+                    console.log('📥 Отримано повідомлення:', data);
                     
+                    // ТАК ЯК В ADMIN_CHAT.HTML: обробляємо різні типи повідомлень
                     switch(data.type) {
                         case 'history':
                             loadChatHistory(data.messages);
@@ -193,7 +191,7 @@
                 };
                 
                 ws.onclose = function() {
-                    console.log('WebSocket відключено');
+                    console.log('❌ WebSocket відключено');
                     isConnected = false;
                     document.getElementById('status').textContent = 'Відключено';
                     
@@ -206,12 +204,12 @@
                 };
                 
                 ws.onerror = function(error) {
-                    console.error('Помилка WebSocket:', error);
+                    console.error('❌ Помилка WebSocket:', error);
                     document.getElementById('status').textContent = 'Помилка підключення';
                 };
                 
             } catch (error) {
-                console.error('Помилка створення WebSocket:', error);
+                console.error('❌ Помилка створення WebSocket:', error);
                 document.getElementById('status').textContent = 'Помилка підключення';
             }
         }
@@ -221,14 +219,14 @@
             const message = messageInput.value.trim();
             
             if (!message || !isConnected) {
-                console.log('Повідомлення порожнє або немає підключення');
+                console.log('⚠️ Повідомлення порожнє або немає підключення');
                 return;
             }
             
             // Отримуємо дані користувача з Telegram
             const tgUser = window.Telegram.WebApp.initDataUnsafe?.user;
             
-            // Відправляємо через WebSocket
+            // ТАК ЯК В ADMIN_CHAT.HTML: відправляємо повідомлення через WebSocket
             const messageData = {
                 type: 'send_message',
                 message: message,
@@ -238,7 +236,7 @@
                 first_name: tgUser?.first_name || 'Користувач'
             };
             
-            console.log('Відправляємо:', messageData);
+            console.log('📤 Відправляємо:', messageData);
             ws.send(JSON.stringify(messageData));
             
             // Додаємо повідомлення в чат локально
@@ -248,15 +246,15 @@
         
         function loadChatHistory(messages) {
             const chatContainer = document.getElementById('chatContainer');
-            // Очищуємо контейнер від початкового повідомлення
+            // Очищуємо контейнер
             chatContainer.innerHTML = '';
             
-            messages.forEach(msg => {
-                addMessageToChat(msg.sender_type, msg.message_text, msg.sent_at, false);
-            });
-            
-            // Якщо історії немає, показуємо привітання
-            if (messages.length === 0) {
+            if (messages && messages.length > 0) {
+                messages.forEach(msg => {
+                    addMessageToChat(msg.sender_type, msg.message_text, msg.sent_at, false);
+                });
+            } else {
+                // Якщо історії немає, показуємо привітання
                 addMessageToChat('admin', 'Вітаємо! Як можемо допомогти?', new Date().toISOString(), false);
             }
         }
