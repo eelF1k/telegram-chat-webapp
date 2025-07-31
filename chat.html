@@ -4,7 +4,117 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Чат з підтримкою</title>
-    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <script>
+    const tg = window.Telegram.WebApp;
+    tg.ready();
+    tg.expand();
+    
+    const chatContainer = document.getElementById('chatContainer');
+    const messageInput = document.getElementById('messageInput');
+    const sendButton = document.getElementById('sendButton');
+    
+    const user = tg.initDataUnsafe?.user;
+    const urlParams = new URLSearchParams(window.location.search);
+    const userId = urlParams.get('user_id');
+    const chatId = urlParams.get('chat_id');
+    
+    // Зберігаємо всі повідомлення
+    let messages = [];
+    
+    function addMessage(text, isUser = false, timestamp = null) {
+        const messageDiv = document.createElement('div');
+        messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
+        
+        const timeStr = timestamp ? formatTime(timestamp) : formatTime(new Date().toISOString());
+        
+        messageDiv.innerHTML = `
+            ${text}
+            <div class="message-time">${timeStr}</div>
+        `;
+        
+        chatContainer.appendChild(messageDiv);
+        scrollToBottom();
+    }
+    
+    function formatTime(timestamp) {
+        const date = new Date(timestamp);
+        return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    function scrollToBottom() {
+        chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+    
+    // НОВА ФУНКЦІЯ: Завантаження історії та нових повідомлень
+    async function loadMessages() {
+        try {
+            // Імітуємо запит до бази даних (замініть на реальний API)
+            const response = await fetch(`/api/messages/${chatId}`);
+            if (response.ok) {
+                const newMessages = await response.json();
+                
+                // Перевіряємо чи є нові повідомлення
+                if (newMessages.length > messages.length) {
+                    // Очищуємо контейнер
+                    chatContainer.innerHTML = '<div class="message admin">Вітаємо! Як можемо допомогти?<div class="message-time">Зараз</div></div>';
+                    
+                    // Додаємо всі повідомлення
+                    newMessages.forEach(msg => {
+                        addMessage(msg.text, msg.sender_type === 'user', msg.timestamp);
+                    });
+                    
+                    messages = newMessages;
+                }
+            }
+        } catch (error) {
+            console.error('Помилка завантаження повідомлень:', error);
+        }
+    }
+    
+    function sendMessage() {
+        const message = messageInput.value.trim();
+        if (!message) return;
+        
+        // Додаємо повідомлення в інтерфейс МИТТЄВО
+        addMessage(message, true);
+        messageInput.value = '';
+        
+        // Відправляємо боту через Telegram WebApp API
+        const data = {
+            action: 'send_message',
+            message: message,
+            user_id: userId,
+            chat_id: chatId,
+            username: user?.username,
+            first_name: user?.first_name,
+            timestamp: new Date().toISOString()
+        };
+        
+        tg.sendData(JSON.stringify(data));
+        
+        // Оновлюємо повідомлення через кілька секунд для отримання відповіді
+        setTimeout(loadMessages, 2000);
+    }
+    
+    // АВТОМАТИЧНЕ ОНОВЛЕННЯ кожні 3 секунди
+    setInterval(loadMessages, 3000);
+    
+    // Початкове завантаження
+    loadMessages();
+    
+    // Події
+    sendButton.addEventListener('click', sendMessage);
+    messageInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') {
+            sendMessage();
+        }
+    });
+    
+    // Привітальне повідомлення
+    if (user) {
+        addMessage(`Привіт, ${user.first_name}! Пишіть ваші запитання.`);
+    }
+</script>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, sans-serif;
