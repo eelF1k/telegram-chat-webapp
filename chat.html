@@ -179,6 +179,16 @@
             background: #ccc;
             cursor: not-allowed;
         }
+        
+        .message.pending {
+            opacity: 0.6;
+        }
+        
+        .message.pending::after {
+            content: " (надсилається...)";
+            font-size: 11px;
+            opacity: 0.6;
+        }
     </style>
 </head>
 <body>
@@ -198,7 +208,7 @@
         
         <div class="chat-input-container">
             <input type="text" id="messageInput" placeholder="Введіть ваше повідомлення..." />
-            <button onclick="sendMessage()">Відправити</button>
+            <button onclick="sendMessage()" id="sendButton">Відправити</button>
         </div>
     </div>
 
@@ -213,6 +223,8 @@
         let chatId = null;
         let isTyping = false;
         let typingTimeout = null;
+        let messageQueue = new Map(); // Для відстеження надісланих повідомлень
+        let messageIdCounter = 0;
 
         // Отримання параметрів з URL
         function getUrlParams() {
@@ -277,14 +289,20 @@
                             if (data.sender_type === 'admin') {
                                 displayAdminMessage(data.message, data.timestamp);
                                 playNotificationSound();
+                            } else if (data.sender_type === 'user') {
+                                // Показуємо повідомлення від користувача (синхронізація між вкладками)
+                                const isOwnMessage = data.sender_id == userId;
+                                const isFromOtherTab = data.connection_id !== connectionId;
+                                
+                                if (isFromOtherTab) {
+                                    // Це повідомлення з іншої вкладки - показуємо як синхронізоване
+                                    displayUserMessage(data.message, data.timestamp, true);
+                                }
+                                // Власні повідомлення з цієї вкладки не показуємо - вони вже відображені
                             }
                             break;
                             
-                        case 'message_sent_confirmation':
-                            displayUserMessage(data.message, data.timestamp, true);
-                            break;
-                            
-                        case 'typing':
+                        case 'admin_typing':
                             if (data.is_typing) {
                                 showTypingIndicator();
                             } else {
@@ -326,23 +344,48 @@
 
         function sendMessage() {
             const input = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
             const message = input.value.trim();
             
             if (!message || !ws || ws.readyState !== WebSocket.OPEN) {
                 return;
             }
             
+            // Генеруємо тимчасовий ID для повідомлення
+            const tempMessageId = ++messageIdCounter;
+            
+            // Відображаємо повідомлення локально зі статусом "надсилається"
+            const messageElement = displayUserMessage(message, new Date().toISOString(), false, tempMessageId);
+            messageElement.classList.add('pending');
+            
+            // Зберігаємо в чергу надісланих повідомлень
+            messageQueue.set(tempMessageId, {
+                message: message,
+                element: messageElement,
+                timestamp: new Date().toISOString()
+            });
+            
+            // ВИПРАВЛЕНО: Тільки відправляємо на сервер, не показуємо локально ще раз
             ws.send(JSON.stringify({
                 type: 'send_message',
                 message: message,
                 user_id: userId,
-                chat_id: chatId
+                chat_id: chatId,
+                temp_id: tempMessageId // Додаємо тимчасовий ID
             }));
             
-            displayUserMessage(message, new Date().toISOString(), false);
-            
             input.value = '';
+            sendButton.disabled = false;
             stopTyping();
+            
+            // Через 3 секунди знімаємо статус "надсилається" якщо сервер не відповів
+            setTimeout(() => {
+                if (messageQueue.has(tempMessageId)) {
+                    const queueItem = messageQueue.get(tempMessageId);
+                    queueItem.element.classList.remove('pending');
+                    messageQueue.delete(tempMessageId);
+                }
+            }, 3000);
         }
 
         function startTyping() {
@@ -406,10 +449,14 @@
             statusEl.className = `connection-status ${className}`;
         }
 
-        function displayUserMessage(message, timestamp, fromOtherTab = false) {
+        function displayUserMessage(message, timestamp, fromOtherTab = false, tempId = null) {
             const messages = document.getElementById('messages');
             const messageEl = document.createElement('div');
             messageEl.className = `message user-message ${fromOtherTab ? 'synced' : ''}`;
+            
+            if (tempId) {
+                messageEl.dataset.tempId = tempId;
+            }
             
             const time = new Date(timestamp).toLocaleTimeString('uk-UA', { 
                 hour: '2-digit', 
@@ -423,6 +470,8 @@
             
             messages.appendChild(messageEl);
             scrollToBottom();
+            
+            return messageEl;
         }
 
         function displayAdminMessage(message, timestamp) {
