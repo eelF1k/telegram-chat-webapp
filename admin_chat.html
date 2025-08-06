@@ -3,463 +3,640 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Адмін-панель чату</title>
+    <title>🛠️ Адмін-панель чатів</title>
     <style>
         * {
+            box-sizing: border-box;
             margin: 0;
             padding: 0;
-            box-sizing: border-box;
         }
-        
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             height: 100vh;
             display: flex;
-            background: #f5f6fa;
-        }
-        
-        .sidebar {
-            width: 350px;
-            background: white;
-            border-right: 1px solid #ddd;
-            display: flex;
-            flex-direction: column;
-        }
-        
-        .sidebar-header {
-            background: #0088cc;
-            color: white;
-            padding: 20px;
-            text-align: center;
-        }
-        
-        .filters {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-        }
-        
-        .filter-btn {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 8px 12px;
-            margin: 2px;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        
-        .filter-btn.active {
-            background: #0088cc;
-            color: white;
-        }
-        
-        .search-box {
-            width: 100%;
+            justify-content: center;
+            align-items: center;
             padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 20px;
-            margin-top: 10px;
         }
-        
-        .chat-list {
-            flex: 1;
-            overflow-y: auto;
+
+        .admin-container {
+            width: 100%;
+            max-width: 1200px;
+            height: 90vh;
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+            display: flex;
+            overflow: hidden;
         }
-        
-        .chat-item {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .chat-item:hover {
+
+        /* Панель зліва - список чатів */
+        .chat-list-panel {
+            width: 350px;
             background: #f8f9fa;
-        }
-        
-        .chat-item.active {
-            background: #e3f2fd;
-            border-left: 3px solid #0088cc;
-        }
-        
-        .chat-item.unread {
-            background: #fff3e0;
-            font-weight: bold;
-        }
-        
-        .chat-item.unread::before {
-            content: '●';
-            color: #ff9800;
-            font-size: 20px;
-            margin-right: 10px;
-        }
-        
-        .chat-name {
-            font-weight: 600;
-            margin-bottom: 5px;
-        }
-        
-        .chat-preview {
-            font-size: 13px;
-            color: #666;
-            margin-bottom: 5px;
-        }
-        
-        .chat-time {
-            font-size: 11px;
-            color: #999;
-        }
-        
-        .main-area {
-            flex: 1;
+            border-right: 1px solid #e9ecef;
             display: flex;
             flex-direction: column;
         }
-        
-        .chat-header {
-            background: white;
+
+        .panel-header {
             padding: 20px;
-            border-bottom: 1px solid #ddd;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
-        
-        .user-info h3 {
-            margin-bottom: 5px;
+
+        .panel-title {
+            font-size: 18px;
+            font-weight: 600;
         }
-        
-        .user-status {
+
+        .connection-status {
             font-size: 12px;
-            color: #666;
+            padding: 4px 8px;
+            border-radius: 10px;
+            font-weight: bold;
         }
-        
-        .quick-actions {
+
+        .connection-status.connected {
+            background-color: #4CAF50;
+        }
+
+        .connection-status.connecting {
+            background-color: #FF9800;
+        }
+
+        .connection-status.disconnected {
+            background-color: #9E9E9E;
+        }
+
+        .connection-status.error {
+            background-color: #F44336;
+        }
+
+        .chat-filters {
+            padding: 15px;
+            border-bottom: 1px solid #dee2e6;
+        }
+
+        .filter-buttons {
             display: flex;
-            gap: 10px;
-        }
-        
-        .action-btn {
-            padding: 8px 16px;
-            border: none;
-            border-radius: 15px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        
-        .btn-block {
-            background: #ff4444;
-            color: white;
-        }
-        
-        .btn-close {
-            background: #666;
-            color: white;
-        }
-        
-        .chat-messages {
-            flex: 1;
-            padding: 20px;
-            overflow-y: auto;
-            background: #fafafa;
-        }
-        
-        .message {
-            margin: 15px 0;
-            padding: 12px 16px;
-            border-radius: 18px;
-            max-width: 70%;
-            word-wrap: break-word;
-        }
-        
-        .message.user {
-            background: #e3f2fd;
-            margin-left: auto;
-            text-align: right;
-        }
-        
-        .message.admin {
-            background: white;
-            border: 1px solid #ddd;
-        }
-        
-        .message-time {
-            font-size: 11px;
-            opacity: 0.7;
-            margin-top: 5px;
-        }
-        
-        .reply-area {
-            background: white;
-            padding: 20px;
-            border-top: 1px solid #ddd;
-        }
-        
-        .templates {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 15px;
+            gap: 5px;
             flex-wrap: wrap;
         }
-        
-        .template-btn {
-            background: #f8f9fa;
-            border: 1px solid #ddd;
-            padding: 6px 12px;
+
+        .filter-btn {
+            padding: 5px 12px;
+            border: none;
             border-radius: 15px;
-            cursor: pointer;
-            font-size: 12px;
-        }
-        
-        .template-btn:hover {
             background: #e9ecef;
+            color: #495057;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        
-        .reply-input {
+
+        .filter-btn.active {
+            background: #667eea;
+            color: white;
+        }
+
+        .filter-btn:hover {
+            background: #5a6fd8;
+            color: white;
+        }
+
+        .chat-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 0;
+        }
+
+        .chat-item {
+            padding: 15px;
+            border-bottom: 1px solid #e9ecef;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            position: relative;
+        }
+
+        .chat-item:hover {
+            background: #f1f3f4;
+        }
+
+        .chat-item.active {
+            background: #e3f2fd;
+            border-right: 3px solid #667eea;
+        }
+
+        .chat-item.has-unread {
+            background: #fff3e0;
+        }
+
+        .chat-user-name {
+            font-weight: 600;
+            color: #2c3e50;
+            margin-bottom: 5px;
+        }
+
+        .chat-preview {
+            font-size: 13px;
+            color: #6c757d;
+            margin-bottom: 5px;
+        }
+
+        .chat-time {
+            font-size: 11px;
+            color: #adb5bd;
+        }
+
+        .unread-badge {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #dc3545;
+            color: white;
+            border-radius: 10px;
+            padding: 2px 6px;
+            font-size: 10px;
+            font-weight: bold;
+        }
+
+        /* Панель справа - чат */
+        .chat-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .chat-header {
+            padding: 20px;
+            background: #ffffff;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chat-user-info h3 {
+            margin: 0;
+            color: #2c3e50;
+        }
+
+        .chat-user-meta {
+            font-size: 13px;
+            color: #6c757d;
+            margin-top: 2px;
+        }
+
+        .chat-actions {
             display: flex;
             gap: 10px;
         }
-        
-        .reply-textarea {
-            flex: 1;
-            padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 15px;
-            resize: none;
-            min-height: 50px;
-        }
-        
-        .send-reply-btn {
-            background: #0088cc;
-            color: white;
+
+        .action-btn {
+            padding: 8px 15px;
             border: none;
-            padding: 12px 20px;
-            border-radius: 15px;
+            border-radius: 6px;
             cursor: pointer;
+            font-size: 12px;
+            font-weight: 500;
+            transition: all 0.2s;
         }
-        
-        .no-chat-selected {
+
+        .btn-block {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-block:hover {
+            background: #c82333;
+        }
+
+        .btn-close {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-close:hover {
+            background: #5a6268;
+        }
+
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f8f9fa;
+        }
+
+        .message {
+            margin-bottom: 15px;
+            max-width: 80%;
+        }
+
+        .message.user-message {
+            margin-left: auto;
+            background: #e3f2fd;
+            color: #1976d2;
+            padding: 12px 16px;
+            border-radius: 15px 15px 5px 15px;
+            border-left: 3px solid #2196f3;
+        }
+
+        .message.admin-message {
+            margin-right: auto;
+            background: white;
+            color: #2c3e50;
+            padding: 12px 16px;
+            border-radius: 15px 15px 15px 5px;
+            border-left: 3px solid #667eea;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .message.synced {
+            opacity: 0.8;
+        }
+
+        .message.synced::after {
+            content: " (синхронізовано)";
+            font-size: 11px;
+            opacity: 0.6;
+        }
+
+        .message-time {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 5px;
+        }
+
+        .system-message {
+            text-align: center;
+            color: #6c757d;
+            font-style: italic;
+            margin: 15px 0;
+            padding: 10px;
+            background: #e9ecef;
+            border-radius: 10px;
+        }
+
+        .typing-indicator {
+            padding: 10px 20px;
+            color: #6c757d;
+            font-style: italic;
+            background: #e9ecef;
+            margin: 10px 0;
+            border-radius: 15px;
+            display: none;
+        }
+
+        .empty-chat {
+            flex: 1;
             display: flex;
             align-items: center;
             justify-content: center;
+            color: #adb5bd;
+            text-align: center;
+        }
+
+        .empty-chat-content h3 {
+            margin-bottom: 10px;
+        }
+
+        /* Панель вводу */
+        .message-input-panel {
+            padding: 20px;
+            background: white;
+            border-top: 1px solid #e9ecef;
+        }
+
+        .quick-replies {
+            margin-bottom: 10px;
+        }
+
+        .quick-reply-btn {
+            margin-right: 10px;
+            margin-bottom: 5px;
+            padding: 5px 10px;
+            border: 1px solid #dee2e6;
+            background: #f8f9fa;
+            color: #495057;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-reply-btn:hover {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .message-input-container {
+            display: flex;
+            gap: 10px;
+        }
+
+        .message-input {
             flex: 1;
-            color: #666;
-            font-size: 18px;
+            padding: 12px 16px;
+            border: 2px solid #dee2e6;
+            border-radius: 25px;
+            outline: none;
+            font-size: 14px;
+            resize: none;
+            min-height: 20px;
+            max-height: 100px;
         }
-        
-        .typing-indicator {
-            padding: 10px 20px;
-            font-style: italic;
-            color: #666;
-            background: #f0f0f0;
-            margin: 5px 0;
-            border-radius: 10px;
-            opacity: 0;
-            transition: opacity 0.3s;
+
+        .message-input:focus {
+            border-color: #667eea;
         }
-        
-        .typing-indicator.show {
-            opacity: 1;
+
+        .send-btn {
+            padding: 12px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .send-btn:hover {
+            background: #5a6fd8;
+        }
+
+        .send-btn:disabled {
+            background: #adb5bd;
+            cursor: not-allowed;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .admin-container {
+                height: 100vh;
+                border-radius: 0;
+            }
+            
+            .chat-list-panel {
+                width: 100%;
+                display: none;
+            }
+            
+            .chat-list-panel.mobile-visible {
+                display: flex;
+            }
+            
+            .chat-panel.mobile-hidden {
+                display: none;
+            }
         }
     </style>
 </head>
 <body>
-    <div class="sidebar">
-        <div class="sidebar-header">
-            <h2>Чати підтримки</h2>
-            <div style="font-size: 12px; margin-top: 5px;" id="chatCount">0 активних чатів</div>
-        </div>
-        
-        <div class="filters">
-            <div>
-                <button class="filter-btn active" data-filter="all">Всі</button>
-                <button class="filter-btn" data-filter="new">Нові</button>
-                <button class="filter-btn" data-filter="waiting">Очікують</button>
-                <button class="filter-btn" data-filter="answered">Відповідано</button>
-                <button class="filter-btn" data-filter="closed">Закриті</button>
+    <div class="admin-container">
+        <!-- Панель списку чатів -->
+        <div class="chat-list-panel" id="chatListPanel">
+            <div class="panel-header">
+                <div class="panel-title">🛠️ Чати підтримки</div>
+                <div class="connection-status connecting" id="connectionStatus">Підключення...</div>
             </div>
-            <input type="text" class="search-box" placeholder="Пошук користувачів..." id="searchBox">
-        </div>
-        
-        <div class="chat-list" id="chatList">
-            <!-- Чати будуть додані динамічно -->
-        </div>
-    </div>
-    
-    <div class="main-area">
-        <div id="noChatSelected" class="no-chat-selected">
-            Оберіть чат зі списку
-        </div>
-        
-        <div id="chatArea" style="display: none; flex-direction: column; height: 100%;">
-            <div class="chat-header">
-                <div class="user-info">
-                    <h3 id="currentUserName">Користувач</h3>
-                    <div class="user-status" id="currentUserStatus">Остання активність: невідомо</div>
+
+            <div class="chat-filters">
+                <div class="filter-buttons">
+                    <button class="filter-btn active" data-filter="all">Всі</button>
+                    <button class="filter-btn" data-filter="new">Нові</button>
+                    <button class="filter-btn" data-filter="pending">Очікують</button>
+                    <button class="filter-btn" data-filter="answered">Відповідано</button>
+                    <button class="filter-btn" data-filter="closed">Закриті</button>
                 </div>
-                
-                <div class="quick-actions">
+            </div>
+
+            <div class="chat-list" id="chatList">
+                <div class="system-message">Завантаження чатів...</div>
+            </div>
+        </div>
+
+        <!-- Панель чату -->
+        <div class="chat-panel" id="chatPanel">
+            <div class="empty-chat" id="emptyChat">
+                <div class="empty-chat-content">
+                    <h3>Оберіть чат зі списку</h3>
+                    <p>Виберіть розмову з лівої панелі для початку роботи</p>
+                </div>
+            </div>
+
+            <!-- Заголовок чату (прихований за замовчуванням) -->
+            <div class="chat-header" id="chatHeader" style="display: none;">
+                <div class="chat-user-info">
+                    <h3 id="chatUserName">Користувач</h3>
+                    <div class="chat-user-meta" id="chatUserMeta">Остання активність: невідомо</div>
+                </div>
+                <div class="chat-actions">
                     <button class="action-btn btn-block" onclick="blockUser()">Заблокувати</button>
-                    <button class="action-btn btn-close" onclick="closeCurrentChat()">Закрити чат</button>
+                    <button class="action-btn btn-close" onclick="closeChat()">Закрити чат</button>
                 </div>
             </div>
-            
-            <div class="chat-messages" id="chatMessages">
-                <!-- Повідомлення будуть додані динамічно -->
+
+            <!-- Повідомлення чату (приховані за замовчуванням) -->
+            <div class="chat-messages" id="chatMessages" style="display: none;">
+                <div class="system-message">Завантаження історії...</div>
             </div>
-            
-            <div class="typing-indicator" id="typingIndicator">
-                Користувач друкує...
-            </div>
-            
-            <div class="reply-area">
-                <div class="templates">
-                    <button class="template-btn" onclick="insertTemplate('Дякуємо за звернення! Ми вже працюємо над вашим питанням.')">Стандартна відповідь</button>
-                    <button class="template-btn" onclick="insertTemplate('Будь ласка, надайте більше деталей.')">Запит деталей</button>
-                    <button class="template-btn" onclick="insertTemplate('Вашу проблему вирішено. Дякуємо за звернення!')">Проблему вирішено</button>
+
+            <!-- Індикатор набору тексту -->
+            <div class="typing-indicator" id="typingIndicator">Користувач друкує...</div>
+
+            <!-- Панель вводу (прихована за замовчуванням) -->
+            <div class="message-input-panel" id="messageInputPanel" style="display: none;">
+                <div class="quick-replies">
+                    <button class="quick-reply-btn" onclick="insertQuickReply('Дякуємо за звернення! Розглядаємо ваше питання.')">Стандартна відповідь</button>
+                    <button class="quick-reply-btn" onclick="insertQuickReply('Будь ласка, надайте додаткові деталі вашого запиту.')">Запит деталей</button>
+                    <button class="quick-reply-btn" onclick="insertQuickReply('Проблему вирішено! Якщо у вас є інші питання, звертайтеся.')">Проблему вирішено</button>
                 </div>
-                
-                <div class="reply-input">
-                    <textarea id="replyText" class="reply-textarea" placeholder="Введіть відповідь..."></textarea>
-                    <button class="send-reply-btn" onclick="sendReply()">Відправити</button>
+                <div class="message-input-container">
+                    <textarea class="message-input" id="messageInput" placeholder="Введіть відповідь..." rows="1"></textarea>
+                    <button class="send-btn" id="sendBtn" onclick="sendMessage()">Відправити</button>
                 </div>
             </div>
         </div>
     </div>
 
     <script>
+        // Глобальні змінні
         let ws = null;
+        let connectionId = null;
+        let reconnectAttempts = 0;
+        let maxReconnectAttempts = 5;
+        let reconnectInterval = 1000;
+        let adminId = null;
         let currentChatId = null;
-        let chats = [];
+        let allChats = [];
         let currentFilter = 'all';
-        
-        // Шаблони відповідей
-        const templates = [
-            'Дякуємо за звернення! Ми вже працюємо над вашим питанням.',
-            'Будь ласка, надайте більше деталей.',
-            'Вашу проблему вирішено. Дякуємо за звернення!',
-            'Передаю ваше питання спеціалісту.',
-            'На жаль, ця функція наразі недоступна. Слідкуйте за оновленнями.'
-        ];
-        
-        // Підключення до WebSocket
+        let isTyping = false;
+        let typingTimeout = null;
+
+        // Ініціалізація при завантаженні
+        document.addEventListener('DOMContentLoaded', function() {
+            // Отримуємо adminId з URL або використовуємо за замовчуванням
+            const urlParams = new URLSearchParams(window.location.search);
+            adminId = urlParams.get('admin_id') || '794238641';
+            
+            connectWebSocket();
+            setupEventListeners();
+        });
+
+        // WebSocket підключення з автоматичним перепідключенням
         function connectWebSocket() {
-            ws = new WebSocket('ws://localhost:8001/admin');
+            if (ws && (ws.readyState === WebSocket.CONNECTING || ws.readyState === WebSocket.OPEN)) {
+                return;
+            }
             
+            updateConnectionStatus('Підключення...', 'connecting');
+            
+            const wsUrl = `ws://localhost:8001/admin?admin_id=${adminId}`;
+            ws = new WebSocket(wsUrl);
+
             ws.onopen = function() {
-                console.log('Адмін WebSocket підключено');
-                loadAllChats();
+                console.log('Admin WebSocket підключено');
+                updateConnectionStatus('Підключено', 'connected');
+                reconnectAttempts = 0;
+                reconnectInterval = 1000;
+                
+                // Запитуємо список чатів
+                requestChatList();
             };
-            
+
             ws.onmessage = function(event) {
-                const data = JSON.parse(event.data);
-                handleWebSocketMessage(data);
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Отримано повідомлення:', data);
+                    
+                    switch(data.type) {
+                        case 'admin_connection_established':
+                            connectionId = data.connection_id;
+                            console.log(`Адмін-з'єднання встановлено: ${connectionId}`);
+                            break;
+                            
+                        case 'chat_list':
+                            displayChatList(data.chats);
+                            break;
+                            
+                        case 'chat_history':
+                            displayChatHistory(data.messages);
+                            break;
+                            
+                        case 'new_message':
+                            if (data.sender_type === 'user') {
+                                handleNewUserMessage(data);
+                            } else if (data.sender_type === 'admin') {
+                                // Повідомлення від іншого адміна або з іншої вкладки
+                                const isFromOtherConnection = data.connection_id !== connectionId;
+                                if (isFromOtherConnection && data.chat_id == currentChatId) {
+                                    displayAdminMessage(data.message, data.timestamp, true);
+                                }
+                            }
+                            break;
+                            
+                        case 'admin_message_sent_confirmation':
+                            // Підтвердження відправки повідомлення для синхронізації
+                            if (data.chat_id == currentChatId) {
+                                // Можемо оновити статус повідомлення
+                            }
+                            break;
+                            
+                        case 'typing':
+                            if (data.chat_id == currentChatId) {
+                                if (data.is_typing) {
+                                    showTypingIndicator();
+                                } else {
+                                    hideTypingIndicator();
+                                }
+                            }
+                            break;
+                            
+                        default:
+                            console.log('Невідомий тип повідомлення:', data.type);
+                    }
+                } catch (e) {
+                    console.error('Помилка парсингу повідомлення:', e);
+                }
             };
-            
-            ws.onclose = function() {
-                console.log('WebSocket відключено');
-                setTimeout(connectWebSocket, 3000);
+
+            ws.onclose = function(event) {
+                console.log('Admin WebSocket закрито:', event.code, event.reason);
+                updateConnectionStatus('Відключено', 'disconnected');
+                
+                if (reconnectAttempts < maxReconnectAttempts) {
+                    reconnectAttempts++;
+                    updateConnectionStatus(`Перепідключення... (${reconnectAttempts}/${maxReconnectAttempts})`, 'connecting');
+                    
+                    setTimeout(() => {
+                        connectWebSocket();
+                        reconnectInterval = Math.min(reconnectInterval * 2, 30000);
+                    }, reconnectInterval);
+                } else {
+                    updateConnectionStatus('З\'єднання втрачено', 'error');
+                    showSystemMessage('❌ Не вдалося відновити з\'єднання. Перезавантажте сторінку.');
+                }
+            };
+
+            ws.onerror = function(error) {
+                console.error('Admin WebSocket помилка:', error);
+                updateConnectionStatus('Помилка підключення', 'error');
             };
         }
-        
-        function handleWebSocketMessage(data) {
-            switch(data.type) {
-                case 'chat_list':
-                    updateChatList(data.chats);
-                    break;
-                case 'new_message':
-                    handleNewMessage(data);
-                    break;
-                case 'chat_history':
-                    displayChatHistory(data.messages);
-                    break;
-                case 'typing':
-                    showTypingIndicator(data.is_typing);
-                    break;
-                case 'chat_updated':
-                    updateChatInList(data.chat);
-                    break;
-            }
+
+        // Налаштування обробників подій
+        function setupEventListeners() {
+            // Фільтри чатів
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.addEventListener('click', function() {
+                    setActiveFilter(this.dataset.filter);
+                });
+            });
+
+            // Введення повідомлення
+            const messageInput = document.getElementById('messageInput');
+            messageInput.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                } else {
+                    startTyping();
+                }
+            });
+
+            messageInput.addEventListener('keyup', function(e) {
+                if (this.value.trim() === '') {
+                    stopTyping();
+                }
+            });
+
+            messageInput.addEventListener('blur', stopTyping);
+
+            // Автоматичне розширення textarea
+            messageInput.addEventListener('input', function() {
+                this.style.height = 'auto';
+                this.style.height = (this.scrollHeight) + 'px';
+            });
         }
-        
-        function loadAllChats() {
+
+        // Функції WebSocket комунікації
+        function requestChatList() {
             if (ws && ws.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'get_all_chats' }));
+                ws.send(JSON.stringify({
+                    type: 'get_all_chats'
+                }));
             }
         }
-        
-        function updateChatList(chatData) {
-            chats = chatData;
-            renderChatList();
-        }
-        
-        function renderChatList() {
-            const chatList = document.getElementById('chatList');
-            const filteredChats = filterChats();
-            
-            chatList.innerHTML = '';
-            
-            document.getElementById('chatCount').textContent = `${filteredChats.length} ${currentFilter === 'all' ? 'активних' : ''} чатів`;
-            
-            filteredChats.forEach(chat => {
-                const chatItem = document.createElement('div');
-                chatItem.className = `chat-item ${chat.status} ${chat.unread_count > 0 ? 'unread' : ''}`;
-                chatItem.onclick = () => selectChat(chat.chat_id);
-                
-                const lastMessage = chat.last_message || 'Повідомлень немає';
-                const timeStr = chat.updated_at ? formatTime(chat.updated_at) : '';
-                
-                chatItem.innerHTML = `
-                    <div class="chat-name">${chat.first_name || 'Користувач'} (@${chat.username || 'невідомо'})</div>
-                    <div class="chat-preview">${lastMessage}</div>
-                    <div class="chat-time">${timeStr}</div>
-                `;
-                
-                chatList.appendChild(chatItem);
-            });
-        }
-        
-        function filterChats() {
-            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
-            
-            return chats.filter(chat => {
-                const matchesSearch = !searchTerm || 
-                    (chat.first_name && chat.first_name.toLowerCase().includes(searchTerm)) ||
-                    (chat.username && chat.username.toLowerCase().includes(searchTerm));
-                
-                if (currentFilter === 'all') return matchesSearch;
-                return matchesSearch && chat.status === currentFilter;
-            });
-        }
-        
-        function selectChat(chatId) {
-            currentChatId = chatId;
-            
-            // Оновлюємо активний чат у списку
-            document.querySelectorAll('.chat-item').forEach(item => {
-                item.classList.remove('active');
-            });
-            
-            event.target.closest('.chat-item').classList.add('active');
-            
-            // Показуємо область чату
-            document.getElementById('noChatSelected').style.display = 'none';
-            document.getElementById('chatArea').style.display = 'flex';
-            
-            // Завантажуємо історію чату
-            loadChatHistory(chatId);
-            
-            // Оновлюємо інформацію про користувача
-            const chat = chats.find(c => c.chat_id === chatId);
-            if (chat) {
-                document.getElementById('currentUserName').textContent = 
-                    `${chat.first_name || 'Користувач'} (@${chat.username || 'невідомо'})`;
-                document.getElementById('currentUserStatus').textContent = 
-                    `Остання активність: ${formatTime(chat.updated_at)}`;
-            }
-        }
-        
-        function loadChatHistory(chatId) {
+
+        function requestChatHistory(chatId) {
             if (ws && ws.readyState === WebSocket.OPEN) {
                 ws.send(JSON.stringify({
                     type: 'get_chat_history',
@@ -467,132 +644,351 @@
                 }));
             }
         }
-        
+
+        function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const message = messageInput.value.trim();
+            
+            if (!message || !ws || ws.readyState !== WebSocket.OPEN || !currentChatId) {
+                return;
+            }
+            
+            // Відображаємо повідомлення локально
+            displayAdminMessage(message, new Date().toISOString(), false);
+            
+            // Відправляємо на сервер
+            ws.send(JSON.stringify({
+                type: 'send_message',
+                chat_id: currentChatId,
+                message: message
+            }));
+            
+            messageInput.value = '';
+            messageInput.style.height = 'auto';
+            stopTyping();
+        }
+
+        // Функції відображення
+        function displayChatList(chats) {
+            allChats = chats;
+            const chatList = document.getElementById('chatList');
+            
+            if (chats.length === 0) {
+                chatList.innerHTML = '<div class="system-message">Чатів поки немає</div>';
+                return;
+            }
+            
+            const filteredChats = filterChats(chats, currentFilter);
+            
+            chatList.innerHTML = '';
+            filteredChats.forEach(chat => {
+                const chatItem = createChatItem(chat);
+                chatList.appendChild(chatItem);
+            });
+        }
+
+        function createChatItem(chat) {
+            const item = document.createElement('div');
+            item.className = 'chat-item';
+            item.dataset.chatId = chat.chat_id;
+            
+            if (chat.unread_count > 0) {
+                item.classList.add('has-unread');
+            }
+            
+            const userName = chat.first_name || 'Користувач';
+            const lastMessage = chat.last_message_time ? 
+                new Date(chat.last_message_time).toLocaleString('uk-UA') : 
+                'Немає повідомлень';
+                
+            item.innerHTML = `
+                <div class="chat-user-name">${escapeHtml(userName)}</div>
+                <div class="chat-preview">ID: ${chat.user_id} | Статус: ${chat.status || 'новий'}</div>
+                <div class="chat-time">${lastMessage}</div>
+                ${chat.unread_count > 0 ? `<div class="unread-badge">${chat.unread_count}</div>` : ''}
+            `;
+            
+            item.addEventListener('click', () => selectChat(chat));
+            
+            return item;
+        }
+
+        function selectChat(chat) {
+            currentChatId = chat.chat_id;
+            
+            // Оновлюємо активний чат у списку
+            document.querySelectorAll('.chat-item').forEach(item => {
+                item.classList.remove('active');
+            });
+            
+            const selectedItem = document.querySelector(`[data-chat-id="${chat.chat_id}"]`);
+            if (selectedItem) {
+                selectedItem.classList.add('active');
+                selectedItem.classList.remove('has-unread');
+                const badge = selectedItem.querySelector('.unread-badge');
+                if (badge) badge.remove();
+            }
+            
+            // Показуємо панель чату
+            showChatPanel(chat);
+            
+            // Запитуємо історію
+            requestChatHistory(chat.chat_id);
+        }
+
+        function showChatPanel(chat) {
+            // Приховуємо заглушку
+            document.getElementById('emptyChat').style.display = 'none';
+            
+            // Показуємо елементи чату
+            document.getElementById('chatHeader').style.display = 'flex';
+            document.getElementById('chatMessages').style.display = 'block';
+            document.getElementById('messageInputPanel').style.display = 'block';
+            
+            // Оновлюємо інформацію про користувача
+            document.getElementById('chatUserName').textContent = chat.first_name || 'Користувач';
+            document.getElementById('chatUserMeta').textContent = `ID: ${chat.user_id} | Остання активність: ${
+                chat.last_message_time ? 
+                new Date(chat.last_message_time).toLocaleString('uk-UA') : 
+                'невідомо'
+            }`;
+        }
+
         function displayChatHistory(messages) {
             const chatMessages = document.getElementById('chatMessages');
             chatMessages.innerHTML = '';
             
-            messages.forEach(message => {
-                addMessageToChat(message.message_text, message.sender_type === 'user', message.sent_at);
+            if (messages.length === 0) {
+                chatMessages.innerHTML = '<div class="system-message">Історія повідомлень порожня</div>';
+                return;
+            }
+            
+            messages.forEach(msg => {
+                if (msg.sender_type === 'user') {
+                    displayUserMessage(msg.message_text, msg.sent_at);
+                } else {
+                    displayAdminMessage(msg.message_text, msg.sent_at, true);
+                }
             });
             
             scrollToBottom();
         }
-        
-        function addMessageToChat(text, isUser, timestamp) {
+
+        function displayUserMessage(message, timestamp) {
             const chatMessages = document.getElementById('chatMessages');
-            const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user' : 'admin'}`;
+            const messageEl = document.createElement('div');
+            messageEl.className = 'message user-message';
             
-            const timeStr = formatTime(timestamp);
+            const time = new Date(timestamp).toLocaleTimeString('uk-UA', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
             
-            messageDiv.innerHTML = `
-                ${text}
-                <div class="message-time">${timeStr}</div>
+            messageEl.innerHTML = `
+                <div class="message-content">${escapeHtml(message)}</div>
+                <div class="message-time">${time}</div>
             `;
             
-            chatMessages.appendChild(messageDiv);
+            chatMessages.appendChild(messageEl);
             scrollToBottom();
         }
-        
-        function sendReply() {
-            const replyText = document.getElementById('replyText');
-            const message = replyText.value.trim();
+
+        function displayAdminMessage(message, timestamp, fromHistory = false) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageEl = document.createElement('div');
+            messageEl.className = `message admin-message ${fromHistory ? 'synced' : ''}`;
             
-            if (!message || !currentChatId || !ws || ws.readyState !== WebSocket.OPEN) return;
+            const time = new Date(timestamp).toLocaleTimeString('uk-UA', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
             
-            // Додаємо повідомлення в інтерфейс
-            addMessageToChat(message, false, new Date().toISOString());
-            replyText.value = '';
+            messageEl.innerHTML = `
+                <div class="message-content">${escapeHtml(message)}</div>
+                <div class="message-time">${time}</div>
+            `;
             
-            // Відправляємо через WebSocket
-            ws.send(JSON.stringify({
-                type: 'send_message',
-                chat_id: currentChatId,
-                message: message,
-                sender_type: 'admin'
-            }));
+            chatMessages.appendChild(messageEl);
+            scrollToBottom();
         }
-        
-        function insertTemplate(text) {
-            const replyText = document.getElementById('replyText');
-            replyText.value = text;
-            replyText.focus();
-        }
-        
-        function blockUser() {
-            if (!currentChatId) return;
+
+        function handleNewUserMessage(data) {
+            // Оновлюємо список чатів
+            requestChatList();
             
-            if (confirm('Ви впевнені, що хочете заблокувати цього користувача?')) {
-                ws.send(JSON.stringify({
-                    type: 'block_user',
-                    chat_id: currentChatId
-                }));
-            }
-        }
-        
-        function closeCurrentChat() {
-            if (!currentChatId) return;
-            
-            if (confirm('Закрити цей чат?')) {
-                ws.send(JSON.stringify({
-                    type: 'close_chat',
-                    chat_id: currentChatId
-                }));
-            }
-        }
-        
-        function formatTime(timestamp) {
-            const date = new Date(timestamp);
-            const now = new Date();
-            
-            if (date.toDateString() === now.toDateString()) {
-                return date.toLocaleTimeString('uk-UA', { hour: '2-digit', minute: '2-digit' });
+            // Якщо це повідомлення в поточному чаті
+            if (data.chat_id == currentChatId) {
+                displayUserMessage(data.message, data.timestamp);
+                playNotificationSound();
             } else {
-                return date.toLocaleDateString('uk-UA', { 
-                    day: '2-digit', 
-                    month: '2-digit',
-                    hour: '2-digit', 
-                    minute: '2-digit' 
-                });
+                // Показуємо сповіщення про нове повідомлення
+                showNotification(`Нове повідомлення в чаті ${data.chat_id}`);
             }
         }
-        
+
+        // Допоміжні функції
+        function updateConnectionStatus(status, className) {
+            const statusEl = document.getElementById('connectionStatus');
+            statusEl.textContent = status;
+            statusEl.className = `connection-status ${className}`;
+        }
+
+        function setActiveFilter(filter) {
+            currentFilter = filter;
+            
+            // Оновлюємо активну кнопку
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            document.querySelector(`[data-filter="${filter}"]`).classList.add('active');
+            
+            // Перефільтровуємо чати
+            displayChatList(allChats);
+        }
+
+        function filterChats(chats, filter) {
+            switch (filter) {
+                case 'new':
+                    return chats.filter(chat => chat.status === 'new');
+                case 'pending':
+                    return chats.filter(chat => chat.status === 'pending');
+                case 'answered':
+                    return chats.filter(chat => chat.status === 'answered');
+                case 'closed':
+                    return chats.filter(chat => chat.status === 'closed');
+                default:
+                    return chats;
+            }
+        }
+
+        function insertQuickReply(text) {
+            const messageInput = document.getElementById('messageInput');
+            messageInput.value = text;
+            messageInput.focus();
+        }
+
+        function startTyping() {
+            if (!isTyping && ws && ws.readyState === WebSocket.OPEN && currentChatId) {
+                isTyping = true;
+                ws.send(JSON.stringify({
+                    type: 'typing',
+                    chat_id: currentChatId,
+                    is_typing: true
+                }));
+            }
+            
+            if (typingTimeout) {
+                clearTimeout(typingTimeout);
+            }
+            
+            typingTimeout = setTimeout(stopTyping, 3000);
+        }
+
+        function stopTyping() {
+            if (isTyping && ws && ws.readyState === WebSocket.OPEN && currentChatId) {
+                isTyping = false;
+                ws.send(JSON.stringify({
+                    type: 'typing',
+                    chat_id: currentChatId,
+                    is_typing: false
+                }));
+            }
+            
+            if (typingTimeout) {
+                clearTimeout(typingTimeout);
+                typingTimeout = null;
+            }
+        }
+
+        function showTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'block';
+            scrollToBottom();
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
         function scrollToBottom() {
             const chatMessages = document.getElementById('chatMessages');
             chatMessages.scrollTop = chatMessages.scrollHeight;
         }
-        
-        function showTypingIndicator(isTyping) {
-            const indicator = document.getElementById('typingIndicator');
-            if (isTyping) {
-                indicator.classList.add('show');
-            } else {
-                indicator.classList.remove('show');
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function playNotificationSound() {
+            try {
+                const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmMdBDqP2O3LbSkCKnW/8u2rZh0HJYjG8OC7fkgOH2et2OZ1Qw0SSpru7qQ=');
+                audio.play().catch(() => {});
+            } catch (e) {}
+        }
+
+        function showNotification(message) {
+            // Можна додати браузерні сповіщення
+            if (Notification.permission === 'granted') {
+                new Notification('Нове повідомлення', { body: message });
             }
         }
-        
-        // Обробники подій
-        document.querySelectorAll('.filter-btn').forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-                e.target.classList.add('active');
-                currentFilter = e.target.dataset.filter;
-                renderChatList();
-            });
-        });
-        
-        document.getElementById('searchBox').addEventListener('input', renderChatList);
-        
-        document.getElementById('replyText').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendReply();
+
+        function showSystemMessage(message) {
+            const chatMessages = document.getElementById('chatMessages');
+            const messageEl = document.createElement('div');
+            messageEl.className = 'system-message';
+            messageEl.textContent = message;
+            chatMessages.appendChild(messageEl);
+            scrollToBottom();
+        }
+
+        // Дії адміністратора
+        function blockUser() {
+            if (!currentChatId) return;
+            
+            if (confirm('Ви впевнені, що хочете заблокувати цього користувача?')) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'block_user',
+                        chat_id: currentChatId
+                    }));
+                    
+                    showSystemMessage('Користувач заблокований');
+                }
+            }
+        }
+
+        function closeChat() {
+            if (!currentChatId) return;
+            
+            if (confirm('Ви впевнені, що хочете закрити цей чат?')) {
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        type: 'close_chat',
+                        chat_id: currentChatId
+                    }));
+                    
+                    showSystemMessage('Чат закрито');
+                    
+                    // Оновлюємо список чатів
+                    setTimeout(() => requestChatList(), 500);
+                }
+            }
+        }
+
+        // Закриваємо WebSocket при закритті сторінки
+        window.addEventListener('beforeunload', function() {
+            if (ws) {
+                ws.close();
             }
         });
-        
-        // Ініціалізація
-        connectWebSocket();
+
+        // Запитуємо дозвіл на сповіщення
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
     </script>
 </body>
 </html>
